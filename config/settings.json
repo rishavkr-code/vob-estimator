@@ -35,7 +35,7 @@
   "payers_in_scope": [
     "62308"
   ],
-  "session_idle_seconds": 600,
+  "session_idle_seconds": 900,
   "provider_radius_miles": null,
   "other_payers": [
     "Aetna",

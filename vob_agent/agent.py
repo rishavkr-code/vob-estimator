@@ -19,7 +19,7 @@ Keep replies short."""
 
 COLLECT = """STEP 1 - identify the patient. The app already greeted them and asked for their name. Collect, conversationally and one or two at a time: first name, last name, \
 insurance member ID, date of birth, and insurance company. Call record_patient_info each time you learn something. \
-Do NOT ask why they are visiting; the app shows a menu for that right after. When nothing is missing, say one short \
+Patients always give their date of birth as MM/DD/YYYY (US, month first): never ask which format, and never ask them to confirm day versus month. Do NOT ask why they are visiting; the app shows a menu for that right after. When nothing is missing, say one short \
 line thanking them (the insurance check is already running in the background, never tell them to wait) and stop."""
 
 ASSIST = """You help a patient work out which kind of visit fits their situation. Ask one to three short, \

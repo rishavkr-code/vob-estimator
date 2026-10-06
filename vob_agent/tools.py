@@ -9,7 +9,7 @@ TOOL_SPECS = [
      "input_schema": {"type": "object", "properties": {
          "first_name": {"type": "string"}, "last_name": {"type": "string"},
          "member_id": {"type": "string"},
-         "date_of_birth": {"type": "string", "description": "YYYY-MM-DD or MM/DD/YYYY"},
+         "date_of_birth": {"type": "string", "description": "As the patient typed it. Always US MM/DD/YYYY (month first)"},
          "payer_name": {"type": "string", "description": "Insurance company name as the patient said it"}}}},
     {"name": "set_visit_reason",
      "description": "Only for patients who chose 'I'm not sure'. Set the treatment bundle once their "

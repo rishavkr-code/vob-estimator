@@ -43,3 +43,13 @@ def test_line_ranges_never_inverted():
     store = DataStore(force_local=True)
     est = estimate_clinic(store, "ALLERGY_TEST_NEW", _pb(), TP, BAY)
     assert all(l["low"] <= l["high"] for l in est["lines"] if l["estimable"])
+
+
+def test_dob_is_read_month_first():
+    from vob_agent.session import normalize_dob
+    assert normalize_dob("03/04/1985") == "19850304"      # March 4th, never April 3rd
+    assert normalize_dob("3/4/1985") == "19850304"
+    assert normalize_dob("03-04-1985") == "19850304"
+    assert normalize_dob("1985-03-04") == "19850304"      # the mobile app sends ISO
+    assert normalize_dob("13/04/1985") is None            # no month 13: not silently flipped
+    assert normalize_dob("03/04/2999") is None

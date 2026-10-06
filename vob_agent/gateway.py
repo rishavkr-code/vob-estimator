@@ -194,7 +194,7 @@ def build_router(get_svc, get_agent) -> APIRouter:
         svc.purge_expired()
         s = svc.create()
         s.gateway = True
-        exp = datetime.now(timezone.utc) + timedelta(seconds=svc.store.settings.get("session_idle_seconds", 600))
+        exp = datetime.now(timezone.utc) + timedelta(seconds=svc.store.settings.get("session_idle_seconds", 900))
         return {"sessionId": s.id, "expiresAt": exp.isoformat()}
 
     @router.delete("/patient-sessions/{sid}", status_code=204)

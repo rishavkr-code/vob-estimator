@@ -15,10 +15,11 @@ SLOTS = ["first_name", "last_name", "member_id", "date_of_birth", "payer"]
 
 
 def normalize_dob(text: str) -> str | None:
-    """Accept YYYY-MM-DD, YYYYMMDD or MM/DD/YYYY; return YYYYMMDD."""
+    """Patients give MM/DD/YYYY (US), always read as month first. The mobile app sends YYYY-MM-DD, also accepted.
+    Returns YYYYMMDD."""
     t = text.strip()
     for pat, order in ((r"^(\d{4})-(\d{1,2})-(\d{1,2})$", "ymd"), (r"^(\d{4})(\d{2})(\d{2})$", "ymd"),
-                       (r"^(\d{1,2})/(\d{1,2})/(\d{4})$", "mdy")):
+                       (r"^(\d{1,2})[/.\-](\d{1,2})[/.\-](\d{4})$", "mdy")):
         m = re.match(pat, t)
         if m:
             a, b, c = map(int, m.groups())
@@ -74,7 +75,7 @@ class SessionService:
 
     def get(self, sid: str) -> Session:
         s = self.sessions[sid]
-        idle = self.store.settings.get("session_idle_seconds", 600)
+        idle = self.store.settings.get("session_idle_seconds", 900)
         if time.time() - s.touched > idle:
             self.sessions.pop(sid, None)
             raise KeyError(sid)
@@ -89,7 +90,7 @@ class SessionService:
                     t.cancel()
 
     def purge_expired(self) -> None:
-        idle = self.store.settings.get("session_idle_seconds", 600)
+        idle = self.store.settings.get("session_idle_seconds", 900)
         for sid in [k for k, v in self.sessions.items() if time.time() - v.touched > idle]:
             self.delete(sid)
 
