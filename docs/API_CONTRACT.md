@@ -453,25 +453,63 @@ Field reference:
 Display rule: show the headline as `totalLowCents` to `totalHighCents`; if equal, show a single amount.
 Line items show cents; the spec's rounding rule for headline ranges is the app's choice.
 
-### 2.7 Assistant (optional)
+### 2.7 Assistant (optional chat)
 
-`POST /v1/patient-sessions/assistant`  header `X-Session-Id`  (for "I'm not sure" / free text)
+`POST /v1/patient-sessions/assistant`  header `X-Session-Id`
+
+A short chat that works out which supported visit type the patient means. When it is sure, it returns an `intentId`
+as the **signal for the app** to treat it exactly as if the patient had tapped that visit type, then call
+`estimate`. Patients who never open the chat just tap an intent on the app's own screen: nothing here is required.
 
 Request: ```json
 {
   "text": "My doctor wants me to start allergy shots"
 }
-```  (max 1000 chars)
+```  (max 1000 chars; the session remembers the conversation)
 
-Response `200`: ```json
+Response `200`:
+```json
 {
-  "reply": "That sounds like starting allergy shots. I'll show you an estimate for that.",
-  "intentId": "starting_shots"
+  "reply": "Got it, starting allergy shots. I can get you a cost estimate for that.",
+  "intentId": "starting_shots",
+  "status": "matched",
+  "suggestedReplies": []
 }
 ```
 
-`intentId` is `null` until the assistant has decided; keep sending the patient's replies in the same session.
-When `intentId` is set, call `estimate` with it. Limit: 60 calls per IP per hour. Uses an LLM, so allow up to about 15 seconds.
+Still asking (show the chips; a tap can skip typing):
+```json
+{
+  "reply": "Have you been allergy tested before?",
+  "intentId": null,
+  "status": "asking",
+  "suggestedReplies": [
+    {
+      "label": "I need allergy testing",
+      "intentId": "allergy_testing_new"
+    },
+    {
+      "label": "I need allergy testing again",
+      "intentId": "allergy_testing_established"
+    }
+  ]
+}
+```
+
+| Field | Notes |
+|---|---|
+| `status` | `matched`: `intentId` is set, go to the estimate. `asking`: show `reply` and `suggestedReplies`. `out_of_scope`: stop the chat and show a "not supported yet" screen (off-topic twice in a row, or an emergency described) |
+| `intentId` | One of the ids in section 3, set only when `status` is `matched`. `not_sure` is never returned |
+| `suggestedReplies[]` | `{label, intentId}`. Labels match the app's own intent titles. A tap should be treated as choosing that `intentId` |
+| `reply` | Plain-language text for the patient |
+
+Behaviour:
+- It nudges toward the supported allergy and asthma visits. One off-topic message gets a fixed redirect with suggested visit types; a second in a row returns `out_of_scope`.
+- Someone describing a severe reaction happening now gets an emergency message (`out_of_scope`).
+- It never gives medical advice, never quotes prices, and never asks for personal details. Do not send names, IDs or dates of birth here.
+- The patient's text goes to the LLM provider. Use test data only in this prototype.
+- If the model is unavailable it still answers `asking` with the visit types as suggestions.
+- Typical response time is about 2 seconds. Limit: 60 calls per IP per hour. Empty `text` returns **422**.
 
 ### 2.8 End session
 

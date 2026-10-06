@@ -60,5 +60,72 @@
     "sessions_per_ip_per_hour": 30,
     "eligibility_per_session": 3,
     "eligibility_per_ip_per_hour": 20
+  },
+  "intent_catalog": [
+    {
+      "id": "allergy_testing_new",
+      "label": "I need allergy testing",
+      "description": "First visit, never tested",
+      "hint": "First visit with an allergist for testing (skin or breathing tests). Never tested before."
+    },
+    {
+      "id": "allergy_testing_established",
+      "label": "I need allergy testing again",
+      "description": "I've been tested at this clinic before",
+      "hint": "Repeat allergy testing at a clinic where the patient has already been seen."
+    },
+    {
+      "id": "starting_shots",
+      "label": "I'm starting allergy shots",
+      "description": "Beginning immunotherapy",
+      "hint": "Allergen immunotherapy: beginning a course of allergy shots, usually weekly for months."
+    },
+    {
+      "id": "regular_shot",
+      "label": "I'm coming in for my regular allergy shot",
+      "description": "A routine shot visit",
+      "hint": "A routine visit just to get an allergy shot as part of ongoing immunotherapy."
+    },
+    {
+      "id": "rapid_desensitization",
+      "label": "My doctor recommended rapid desensitization",
+      "description": "A faster shot schedule at the clinic",
+      "hint": "Doctor recommended a faster in-clinic desensitization schedule."
+    },
+    {
+      "id": "breathing_test",
+      "label": "I need a breathing test",
+      "description": "Spirometry, a lung function test",
+      "hint": "Spirometry or lung function testing (asthma, shortness of breath checks)."
+    },
+    {
+      "id": "biologic_start",
+      "label": "I'm starting a biologic",
+      "description": "Like Xolair or Dupixent",
+      "hint": "Starting an injectable biologic for asthma, hives or allergies (Xolair, Dupixent and similar)."
+    },
+    {
+      "id": "follow_up",
+      "label": "I have a follow-up appointment",
+      "description": "Checking in with my doctor",
+      "hint": "A check-in visit with the allergist or asthma doctor."
+    },
+    {
+      "id": "not_sure",
+      "label": "I'm not sure",
+      "description": "My doctor referred me",
+      "hint": "The patient does not know which applies or was just referred."
+    }
+  ],
+  "assistant": {
+    "model": "claude-haiku-4-5-20251001",
+    "default_chips": [
+      "allergy_testing_new",
+      "starting_shots",
+      "breathing_test",
+      "follow_up"
+    ],
+    "max_off_topic": 2,
+    "max_history": 12
   }
 }

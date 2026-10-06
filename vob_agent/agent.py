@@ -26,11 +26,6 @@ Never retract or doubt details you already recorded from a photo. If the photo \
 is unreadable, say so kindly and ask them to type the details. Do NOT ask why they are visiting; the app shows a menu for that right after. When nothing is missing, say one short \
 line thanking them (the insurance check is already running in the background, never tell them to wait) and stop."""
 
-ASSIST = """You help a patient work out which kind of visit fits their situation. Ask one to three short, \
-friendly questions (what their doctor said, symptoms they want checked). When it is clear, call set_visit_reason \
-with the best match from: {bundles}, then say in one sentence which visit type you picked and that the app will \
-show the estimate. Never ask for personal details, never quote prices, never give medical advice."""
-
 CHAT = """The patient picked their reason for visit ({reason}) and the app already showed them the estimate for each \
 clinic and a side-by-side comparison. Answer follow-up questions about it using only the figures in the conversation. \
 If they chose "not sure", ask a few questions, then call set_visit_reason with one of: {bundles}, then call \
@@ -147,8 +142,6 @@ class Agent:
     def _system(self, s: Session) -> str:
         menu = self.svc.store.settings.get("_menu_labels", {})
         reason = menu.get(s.option_id, s.option_id or "unknown")
-        if s.phase == "assist":
-            return SYSTEM.format(phase_text=ASSIST.format(bundles=", ".join(sorted(self.svc.store.bundles))))
         text = COLLECT if s.phase == "collecting" else CHAT.format(
             reason=reason, bundles=", ".join(sorted(self.svc.store.bundles)))
         return SYSTEM.format(phase_text=text)

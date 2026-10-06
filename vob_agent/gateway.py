@@ -12,6 +12,7 @@ from datetime import date, datetime, timedelta, timezone
 from fastapi import APIRouter, File, Header, HTTPException, Request, UploadFile
 from pydantic import BaseModel
 
+from . import assistant as assistant_mod
 from . import cardvision
 from .engine import benefit_for, compare_clinics, estimate_clinic
 from .session import Session, normalize_dob
@@ -350,16 +351,12 @@ def build_router(get_svc, get_agent) -> APIRouter:
 
     @router.post("/patient-sessions/assistant")
     async def assistant(body: AssistantBody, request: Request, x_session_id: str | None = Header(None)):
+        """Chat that works out which supported visit type the patient means. See assistant.py."""
         svc = get_svc()
         s = session(x_session_id)
         _limit("asst:" + _ip(request), 60)
-        s.phase = "assist"
-        before = s.bundle_id
-        reply = await get_agent().respond(s, body.text[:1000])
-        intent = None
-        if s.bundle_id and s.bundle_id != before:
-            intents = svc.store.settings.get("intent_bundles", {})
-            intent = next((i for i, b in intents.items() if b == s.bundle_id and i != "not_sure"), None)
-        return {"reply": reply, "intentId": intent}
+        if not body.text.strip():
+            raise HTTPException(422, "text is empty")
+        return await assistant_mod.assist(s, body.text[:1000], svc.store.settings)
 
     return router

@@ -417,7 +417,7 @@
             "assistant"
           ]
         },
-        "description": "Uses the LLM. Returns reply and, once it is clear, intentId (e.g. starting_shots). Send follow-up text with the same session.",
+        "description": "Chat that returns status (asking | matched | out_of_scope), intentId when matched, and suggestedReplies chips. Send follow-up text with the same session. Try: 'my knee hurts' twice to see out_of_scope.",
         "body": {
           "mode": "raw",
           "raw": "{\n  \"text\": \"My doctor wants me to start allergy shots\"\n}",
@@ -427,7 +427,20 @@
             }
           }
         }
-      }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const j = pm.response.json();",
+              "pm.test(\"has status\", () => pm.expect(j.status).to.be.oneOf([\"asking\",\"matched\",\"out_of_scope\"]));",
+              "console.log(j.status, j.intentId);"
+            ]
+          }
+        }
+      ]
     },
     {
       "name": "8. End session (Start over)",

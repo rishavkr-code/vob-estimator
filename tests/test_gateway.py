@@ -126,12 +126,87 @@ def test_cpt_max_used_for_high_scenario():
         assert line["lowCents"] == line["highCents"] == 4000   # copay either way, but the high code resolved
 
 
-def test_assistant_maps_free_text_to_intent():
+from vob_agent import assistant as assistant_mod
+
+
+def _assistant(monkeypatch, replies):
+    """Stub the model: `replies` is a list of tool inputs, one per patient message."""
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test")
+    monkeypatch.setenv("LLM_PROVIDER", "anthropic")
+    seen = []
+
+    async def fake(system, messages):
+        seen.append(list(messages))
+        out = replies[len(seen) - 1]
+        if isinstance(out, Exception):
+            raise out
+        return out
+    monkeypatch.setattr(assistant_mod, "_call_model", fake)
+    return seen
+
+
+def _say(c, sid, text):
+    return c.post("/v1/patient-sessions/assistant", headers=H(sid), json={"text": text}).json()
+
+
+def test_assistant_matches_intent_and_signals_status(monkeypatch):
+    _assistant(monkeypatch, [{"on_topic": True, "matched_intent": "starting_shots",
+                              "message": "Got it, starting allergy shots."}])
     with _client() as c:
-        api.agent = Agent(api.svc, AssistLLM())
+        r = _say(c, _session(c), "My doctor wants me to start allergy shots")
+        assert r == {"reply": "Got it, starting allergy shots.", "intentId": "starting_shots",
+                     "status": "matched", "suggestedReplies": []}
+
+
+def test_assistant_asks_with_suggestions_and_drops_bad_ids(monkeypatch):
+    _assistant(monkeypatch, [{"on_topic": True, "matched_intent": None, "message": "What did your doctor say?",
+                              "suggested_intents": ["allergy_testing_new", "made_up_id", "not_sure", "breathing_test", "allergy_testing_new"]},
+                             {"on_topic": True, "matched_intent": "not_sure", "message": "Hmm, tell me more."}])
+    with _client() as c:
         sid = _session(c)
-        r = c.post("/v1/patient-sessions/assistant", headers=H(sid), json={"text": "I get short of breath"}).json()
-        assert r["intentId"] == "breathing_test" and "breathing" in r["reply"]
+        r = _say(c, sid, "not sure")
+        assert r["status"] == "asking" and r["intentId"] is None
+        assert r["suggestedReplies"] == [{"label": "I need allergy testing", "intentId": "allergy_testing_new"},
+                                         {"label": "I need a breathing test", "intentId": "breathing_test"}]
+        r2 = _say(c, sid, "no idea")
+        assert r2["status"] == "asking" and r2["intentId"] is None      # "not_sure" never counts as a match
+        assert r2["suggestedReplies"]                                   # falls back to default chips
+
+
+def test_assistant_redirects_off_topic_then_gives_up(monkeypatch):
+    off = {"on_topic": False, "matched_intent": None, "message": "I cover allergy and asthma visits.",
+           "suggested_intents": ["allergy_testing_new"]}
+    ok = {"on_topic": True, "matched_intent": None, "message": "What brings you in?"}
+    _assistant(monkeypatch, [off, ok, off, off])
+    with _client() as c:
+        sid = _session(c)
+        first = _say(c, sid, "my knee hurts")
+        assert first["status"] == "asking" and first["suggestedReplies"]   # first strike: redirect with chips
+        assert "I cover allergy" not in first["reply"] and "allergy and asthma visits" in first["reply"]   # fixed text, not the model's
+        assert _say(c, sid, "ok")["status"] == "asking"                 # back on topic resets the count
+        assert _say(c, sid, "weather?")["status"] == "asking"
+        last = _say(c, sid, "football scores")                           # two off-topic in a row
+        assert last["status"] == "out_of_scope" and last["suggestedReplies"] == [] and last["intentId"] is None
+
+
+def test_assistant_urgent_and_failures(monkeypatch):
+    seen = _assistant(monkeypatch, [{"on_topic": True, "urgent": True, "message": "Please call 911 now."},
+                                    RuntimeError("model down")])
+    with _client() as c:
+        sid = _session(c)
+        r = _say(c, sid, "my throat is closing")
+        assert r["status"] == "out_of_scope" and "911" in r["reply"] and r["intentId"] is None
+        r = _say(c, sid, "hello")                                        # model failure: still usable
+        assert r["status"] == "asking" and r["suggestedReplies"]
+        assert all(isinstance(m["content"], str) for turn in seen for m in turn)   # plain text only, no PHI blocks
+        assert c.post("/v1/patient-sessions/assistant", headers=H(sid), json={"text": "  "}).status_code == 422
+
+
+def test_assistant_without_a_model_still_offers_a_menu(monkeypatch):
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    with _client() as c:
+        r = _say(c, _session(c), "help")
+        assert r["status"] == "asking" and len(r["suggestedReplies"]) == 8
 
 
 def test_provider_details_and_distance():

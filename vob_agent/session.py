@@ -51,6 +51,8 @@ class Session:
     benefits_task: asyncio.Task | None = None
     benefits_key: str | None = None
     eligibility_calls: int = 0
+    assist_history: list = field(default_factory=list)   # visit-type assistant: plain text turns only
+    assist_off_topic: int = 0
 
     @property
     def unlocked(self) -> bool:
