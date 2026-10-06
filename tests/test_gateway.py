@@ -132,3 +132,18 @@ def test_assistant_maps_free_text_to_intent():
         sid = _session(c)
         r = c.post("/v1/patient-sessions/assistant", headers=H(sid), json={"text": "I get short of breath"}).json()
         assert r["intentId"] == "breathing_test" and "breathing" in r["reply"]
+
+
+def test_provider_details_and_distance():
+    with _client() as c:
+        sid = _session(c)
+        near_bay = c.post("/v1/patient-sessions/providers", headers=H(sid),
+                          json={"near": {"kind": "zip", "zip": "94598"}}).json()
+        bay, phx = near_bay[0], near_bay[1]
+        assert bay["name"] == "ALLERGY & ASTHMA MEDICAL GROUP OF THE BAY AREA INC"   # untruncated name
+        assert (bay["city"], bay["state"], bay["zip"]) == ("Walnut Creek", "CA", "94598")
+        assert bay["distanceMiles"] < 1 and phx["city"] == "Phoenix"
+        assert 550 < phx["distanceMiles"] < 800                                      # Walnut Creek to Phoenix
+        near_phx = c.post("/v1/patient-sessions/providers", headers=H(sid),
+                          json={"near": {"kind": "zip", "zip": "85013"}}).json()
+        assert near_phx[0]["npi"] == "1609834373"                                    # nearest first

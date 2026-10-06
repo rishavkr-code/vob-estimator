@@ -1,0 +1,11 @@
+{
+  "_comment": "Fallback clinic details by NPI (from public listings, not yet verified). Values filled in the clinics Google Sheet take precedence; coordinates are derived from the ZIP.",
+  "1871550590": {
+    "name": "ALLERGY & ASTHMA MEDICAL GROUP OF THE BAY AREA INC",
+    "address_line": "370 N Wiget Ln Ste 210", "city": "Walnut Creek", "state": "CA", "zip": "94598", "phone": "925-935-6252"
+  },
+  "1609834373": {
+    "name": "ALLERGY ASTHMA CLINIC LTD",
+    "address_line": "300 W Clarendon Ave Ste 120", "city": "Phoenix", "state": "AZ", "zip": "85013", "phone": "602-277-3337"
+  }
+}

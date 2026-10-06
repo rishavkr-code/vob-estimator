@@ -28,6 +28,20 @@ def load_settings() -> dict:
     return json.loads((ROOT / "config/settings.json").read_text())
 
 
+def load_clinic_details() -> dict:
+    path = ROOT / "config/clinic_details.json"
+    return json.loads(path.read_text()) if path.exists() else {}
+
+
+def _zip_latlng(zip_code: str):
+    try:
+        import zipcodes
+        m = zipcodes.matching((zip_code or "")[:5])
+        return (float(m[0]["lat"]), float(m[0]["long"])) if m else (None, None)
+    except Exception:
+        return (None, None)
+
+
 def load_menu() -> dict:
     return json.loads((ROOT / "config/menu.json").read_text())
 
@@ -144,6 +158,7 @@ class DataStore:
                              (r.get("state") or "").strip(), (r.get("zip") or "").strip(),
                              (r.get("phone") or "").strip(), _num(r.get("lat")), _num(r.get("lng")))
             for r in rows["clinics"]}
+        self._apply_clinic_details()
         self.payers = [
             Payer(r["trading_partner_id"], r["handler_key"], r["payer_name"],
                   [a.strip().lower() for a in r["aliases"].split(";") if a.strip()],
@@ -166,6 +181,19 @@ class DataStore:
             self.fees[(r["trading_partner_id"], r["npi"], r["cpt"])] = Fee(
                 float(r["allowed_amount"]), r["unit_basis"], r.get("source", ""))
         self.loaded_at = time.time()
+
+    def _apply_clinic_details(self):
+        """Fill gaps from config/clinic_details.json. Sheet values win; ZIP supplies coordinates."""
+        details = load_clinic_details()
+        for npi, c in self.clinics.items():
+            d = details.get(npi, {})
+            if d.get("name") and (not c.name or c.name.endswith("...")):
+                c.name = d["name"]
+            for f in ("address_line", "city", "state", "zip", "phone"):
+                if not getattr(c, f) and d.get(f):
+                    setattr(c, f, d[f])
+            if c.lat is None or c.lng is None:
+                c.lat, c.lng = _zip_latlng(c.zip)
 
     def maybe_refresh(self):
         """Refresh on TTL. On failure keep serving the last good copy (and record the error)."""

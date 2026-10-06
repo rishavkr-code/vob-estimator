@@ -238,21 +238,21 @@ Response `200`: array matching the app's `providerSchema`, sorted by distance. E
 [
   {
     "npi": "1871550590",
-    "name": "ALLERGY & ASTHMA MEDICAL GROUP OF THE BAY AR...",
-    "addressLine": "",
-    "city": "",
-    "state": "",
-    "zip": "",
-    "phone": "",
+    "name": "ALLERGY & ASTHMA MEDICAL GROUP OF THE BAY AREA INC",
+    "addressLine": "370 N Wiget Ln Ste 210",
+    "city": "Walnut Creek",
+    "state": "CA",
+    "zip": "94598",
+    "phone": "925-935-6252",
     "tier": 1,
-    "distanceMiles": 0.0
+    "distanceMiles": 34.3
   }
 ]
 ```
 
 Notes:
 - Returns only clinics that have a fee schedule for the patient's payer.
-- `addressLine`, `city`, `state`, `zip`, `phone` are empty strings and `distanceMiles` is `0` **until the clinics sheet gets those columns** (open item).
+- Address, phone and distance are filled from backend config for the two prototype clinics (public listings, **not yet verified**). `distanceMiles` is measured from the patient's ZIP (or coordinates) to the clinic's ZIP centroid, so it is approximate. Values entered later in the clinics sheet take precedence.
 - `near.zip` is US, first 5 digits used.
 
 ### 2.6 Estimate (new)
@@ -572,7 +572,7 @@ endSession(sessionId: string): Promise<void>;
 | Item | State |
 |---|---|
 | Card OCR | Stub, always `unreadable` |
-| Clinic address, phone, distance | Empty until sheet columns are added |
+| Clinic address, phone, distance | From unverified public listings; distance is ZIP-centroid based |
 | Payers | Cigna only |
 | Biologic drug choice | `drugId` ignored |
 | Cheaper/costlier code ranges (e.g. 99213/99214) | Supported by the backend but needs the `cpt_max` column filled in the bundles sheet |
