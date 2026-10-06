@@ -30,7 +30,7 @@ The app's local engine and the `fee-schedule` endpoint are **not used** (see "Ch
 ```
 POST /v1/patient-sessions                 -> sessionId
 GET  /v1/payers                           -> payer picker
-POST /v1/patient-sessions/card-ocr        -> {"status":"unreadable"}  (stub: type details instead)
+POST /v1/patient-sessions/card-ocr        -> fields read from the card photo (or unreadable: type details)
 POST /v1/patient-sessions/eligibility     -> status + benefits   (call as soon as the card is confirmed)
 POST /v1/patient-sessions/providers       -> clinics near the patient
 POST /v1/patient-sessions/estimate        -> priced estimate per clinic + comparison
