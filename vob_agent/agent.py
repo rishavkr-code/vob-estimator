@@ -39,7 +39,7 @@ class ClaudeLLM:
         if not os.getenv("ANTHROPIC_API_KEY"):
             raise RuntimeError("ANTHROPIC_API_KEY is not set (add it to .env)")
         self.client = AsyncAnthropic()
-        self.model = os.getenv("LLM_MODEL", "claude-sonnet-5-5")
+        self.model = os.getenv("ANTHROPIC_MODEL", "claude-sonnet-5-5")
 
     async def complete(self, system, messages, tools):
         return await self.client.messages.create(model=self.model, max_tokens=1024, system=system,
@@ -54,7 +54,7 @@ class OpenRouterLLM:
         self.key = os.getenv("OPENROUTER_API_KEY")
         if not self.key:
             raise RuntimeError("OPENROUTER_API_KEY is not set (add it to .env)")
-        self.model = os.getenv("LLM_MODEL", "deepseek/deepseek-v4.1-flash")
+        self.model = os.getenv("OPENROUTER_MODEL") or os.getenv("LLM_MODEL", "deepseek/deepseek-v4.1-flash")
 
     @staticmethod
     def _convert(system, messages):
@@ -101,7 +101,11 @@ class OpenRouterLLM:
 
 
 def make_llm():
-    return OpenRouterLLM() if os.getenv("OPENROUTER_API_KEY") else ClaudeLLM()
+    """LLM_PROVIDER=anthropic|openrouter wins; otherwise Anthropic if its key is set, else OpenRouter."""
+    provider = os.getenv("LLM_PROVIDER", "").lower()
+    if provider == "openrouter" or (not provider and not os.getenv("ANTHROPIC_API_KEY") and os.getenv("OPENROUTER_API_KEY")):
+        return OpenRouterLLM()
+    return ClaudeLLM()
 
 
 def _blocks(resp) -> list[dict]:
