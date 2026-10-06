@@ -77,6 +77,7 @@ def test_full_mobile_flow():
         assert bay["deductible"]["beforeCents"] == 67900 and bay["confidence"] in ("high", "medium")
         cmp_ = est["comparison"]
         assert cmp_["cheapestNpi"] == "1609834373" and cmp_["versusNpi"] == "1871550590" and cmp_["savingsCents"] > 0
+        assert {l["costType"] for l in bay["lines"]} <= {"copay", "deductible", "deductible_then_coinsurance", "coinsurance"}
         assert "99204" not in str(bay["lines"])  # no billing codes in patient-facing fields
         assert "ABC123" not in str(est) and "Doe" not in str(est)
 

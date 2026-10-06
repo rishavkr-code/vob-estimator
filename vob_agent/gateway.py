@@ -119,6 +119,13 @@ def plan_benefits_json(store, pb, payer_name: str) -> dict:
     return out
 
 
+def _cost_type(line: dict) -> str:
+    """Engine cost types -> the app's CostShareType names."""
+    if not line["estimable"]:
+        return "not_covered" if "not covered" in (line["note"] or "").lower() else "price_unavailable"
+    return {"deductible + coinsurance": "deductible_then_coinsurance"}.get(line["cost_type"], line["cost_type"])
+
+
 def clinic_estimate_json(est: dict, pb, bundle_lines) -> dict:
     unpriced = [l for l in est["lines"] if not l["estimable"]]
     reasons = []
@@ -141,7 +148,7 @@ def clinic_estimate_json(est: dict, pb, bundle_lines) -> dict:
         "kind": "estimate", "npi": est["npi"], "name": est["clinic"],
         "totalLowCents": _cents(est["total_low"]), "totalHighCents": _cents(est["total_high"]),
         "confidence": tier, "confidenceReasons": reasons,
-        "lines": [{"name": l["name"], "costType": l["cost_type"], "estimable": l["estimable"],
+        "lines": [{"name": l["name"], "costType": _cost_type(l), "estimable": l["estimable"],
                    "lowCents": None if l["low"] is None else _cents(l["low"]),
                    "highCents": None if l["high"] is None else _cents(l["high"]),
                    "unitsLow": l["units_low"], "unitsHigh": l["units_high"], "note": l["note"]}
