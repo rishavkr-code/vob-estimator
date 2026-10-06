@@ -1,0 +1,456 @@
+{
+  "info": {
+    "name": "VOB Estimate API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Run requests 0 to 8 in order. Request 1 saves sessionId automatically. Fill the patient variables (Variables tab) before request 4."
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "https://vob-estimator.onrender.com"
+    },
+    {
+      "key": "sessionId",
+      "value": ""
+    },
+    {
+      "key": "payerId",
+      "value": "62308"
+    },
+    {
+      "key": "firstName",
+      "value": ""
+    },
+    {
+      "key": "lastName",
+      "value": ""
+    },
+    {
+      "key": "memberId",
+      "value": ""
+    },
+    {
+      "key": "dateOfBirth",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "0. Health (wakes the server)",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/health",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "health"
+          ]
+        },
+        "description": "Free Render sleeps after 15 idle minutes. Run this first; the first call can take ~50s."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"server up\", () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "1. Create session",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/v1/patient-sessions",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "v1",
+            "patient-sessions"
+          ]
+        },
+        "description": "Returns sessionId. The test script saves it into {{sessionId}} so every later request sends it as X-Session-Id. Expires after 15 idle minutes."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"201/200\", () => pm.response.to.have.status(200));",
+              "const j = pm.response.json(); pm.collectionVariables.set(\"sessionId\", j.sessionId);",
+              "pm.test(\"has sessionId\", () => pm.expect(j.sessionId).to.be.a(\"string\"));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. List payers",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/v1/payers?specialty=allergy",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "v1",
+            "payers"
+          ],
+          "query": [
+            {
+              "key": "specialty",
+              "value": "allergy"
+            }
+          ]
+        },
+        "description": ""
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const p = pm.response.json(); pm.test(\"Cigna supported\", () => pm.expect(p.find(x => x.id===\"62308\").supported).to.eql(true));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Card OCR (stub)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Session-Id",
+            "value": "{{sessionId}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/v1/patient-sessions/card-ocr",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "v1",
+            "patient-sessions",
+            "card-ocr"
+          ]
+        },
+        "description": "Stub. Always returns unreadable so the app falls back to manual entry. No image needed."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"unreadable\", () => pm.expect(pm.response.json().status).to.eql(\"unreadable\"));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Eligibility (runs the 270/271)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Session-Id",
+            "value": "{{sessionId}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/v1/patient-sessions/eligibility",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "v1",
+            "patient-sessions",
+            "eligibility"
+          ]
+        },
+        "description": "Fill firstName, lastName, memberId, dateOfBirth (YYYY-MM-DD) in the collection Variables tab first. Takes a few seconds (real Stedi call). Status is ok / inactive / member_not_found / payer_not_supported.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"payerId\": \"{{payerId}}\",\n  \"payerName\": \"Cigna\",\n  \"memberId\": \"{{memberId}}\",\n  \"groupNumber\": \"\",\n  \"firstName\": \"{{firstName}}\",\n  \"lastName\": \"{{lastName}}\",\n  \"dateOfBirth\": \"{{dateOfBirth}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"responded\", () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+              "const j = pm.response.json(); console.log(\"status:\", j.status);",
+              "if (j.status === \"ok\") { pm.test(\"has deductible\", () => pm.expect(j.benefits).to.have.property(\"deductible\")); }"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Providers (by ZIP)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Session-Id",
+            "value": "{{sessionId}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/v1/patient-sessions/providers",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "v1",
+            "patient-sessions",
+            "providers"
+          ]
+        },
+        "description": "near can also be {\"kind\":\"coords\",\"lat\":37.45,\"lng\":-122.18}. Address and distance stay empty/0 until the clinics sheet has address, zip, phone, lat and lng columns.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"specialty\": \"allergy_immunology\",\n  \"tier\": 1,\n  \"near\": {\n    \"kind\": \"zip\",\n    \"zip\": \"94025\"\n  }\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "6. Estimate: new allergy testing",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Session-Id",
+            "value": "{{sessionId}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/v1/patient-sessions/estimate",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "v1",
+            "patient-sessions",
+            "estimate"
+          ]
+        },
+        "description": "Run AFTER eligibility returned ok. Money is in cents. comparison.cheapestNpi and savingsCents show the clinic comparison.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"intentId\": \"allergy_testing_new\",\n  \"npis\": [\n    \"1871550590\",\n    \"1609834373\"\n  ]\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const j = pm.response.json(); pm.test(\"ok\", () => pm.expect(j.status).to.eql(\"ok\"));",
+              "pm.test(\"two clinics priced\", () => pm.expect(j.clinics.filter(c => c.kind===\"estimate\").length).to.eql(2));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "6b. Estimate: allergy shots",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Session-Id",
+            "value": "{{sessionId}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/v1/patient-sessions/estimate",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "v1",
+            "patient-sessions",
+            "estimate"
+          ]
+        },
+        "description": "Other intentIds: allergy_testing_established, regular_shot, rapid_desensitization, breathing_test, biologic_start, follow_up, not_sure.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"intentId\": \"starting_shots\",\n  \"npis\": [\n    \"1871550590\",\n    \"1609834373\"\n  ]\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "7. Assistant (free text to visit type)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Session-Id",
+            "value": "{{sessionId}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/v1/patient-sessions/assistant",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "v1",
+            "patient-sessions",
+            "assistant"
+          ]
+        },
+        "description": "Uses the LLM. Returns reply and, once it is clear, intentId (e.g. starting_shots). Send follow-up text with the same session.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"text\": \"My doctor wants me to start allergy shots\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "8. End session (Start over)",
+      "request": {
+        "method": "DELETE",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Session-Id",
+            "value": "{{sessionId}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/v1/patient-sessions/{{sessionId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "v1",
+            "patient-sessions",
+            "{{sessionId}}"
+          ]
+        },
+        "description": "Returns 204. Any later call with the same sessionId gets 401."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"deleted\", () => pm.response.to.have.status(204));"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
