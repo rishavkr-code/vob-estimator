@@ -20,7 +20,7 @@ form button:disabled{opacity:.5}#att{background:var(--bg);color:var(--ink);borde
 .est h3{margin:0 0 8px;font-size:15px}.row{display:flex;justify-content:space-between;gap:12px;padding:4px 0;border-bottom:1px dashed var(--line)}
 .row span:last-child{white-space:nowrap}.tot{font-weight:700;border:0;padding-top:8px}.sub{color:var(--mute);font-size:13px}.scroll{overflow:auto}table{border-collapse:collapse;width:100%;font-size:13px}th,td{padding:5px 6px;border-bottom:1px dashed var(--line);text-align:right}th:first-child,td:first-child{text-align:left}.tt td{border:0;padding-top:8px}.win{margin-top:8px;font-weight:600;color:var(--acc)}
 </style></head><body><div id="app"><div id="log"></div>
-<form id="f"><button type="button" id="att" title="Attach a photo of your insurance card" aria-label="Attach insurance card photo">Card photo</button><input id="photo" type="file" accept="image/*" hidden><input id="t" placeholder="Type your message" autocomplete="off"><button id="b">Send</button></form></div>
+<form id="f"><button type="button" id="att" title="Attach a photo or PDF of your insurance card" aria-label="Attach insurance card photo or PDF">Card photo</button><input id="photo" type="file" accept="image/*,application/pdf,.pdf,.heic,.heif" hidden><input id="t" placeholder="Type your message" autocomplete="off"><button id="b">Send</button></form></div>
 <script>
 const log=document.getElementById('log'),t=document.getElementById('t'),b=document.getElementById('b');
 let sid=null;
@@ -53,8 +53,13 @@ async function pick(o,ans){lock(true,'Checking your benefits…');
  lock(false)}catch(e){bot('Error: '+e.message);lock(false)}}
 function shrink(file){return new Promise((ok,no)=>{const img=new Image(),u=URL.createObjectURL(file);img.onload=()=>{const k=Math.min(1,1600/Math.max(img.width,img.height)),c=document.createElement('canvas');c.width=Math.round(img.width*k);c.height=Math.round(img.height*k);c.getContext('2d').drawImage(img,0,0,c.width,c.height);URL.revokeObjectURL(u);ok(c.toDataURL('image/jpeg',0.85).split(',')[1])};img.onerror=()=>no(new Error('Could not read that image'));img.src=u})}
 att.onclick=()=>photo.click();
+const rawB64=f=>new Promise((ok,no)=>{const r=new FileReader();r.onload=()=>ok(String(r.result).split(',')[1]);r.onerror=()=>no(new Error('Could not read that file'));r.readAsDataURL(f)});
+const noResize=f=>f.type==='application/pdf'||/heic|heif/i.test(f.type)||/\.(pdf|heic|heif)$/i.test(f.name);
 photo.onchange=async()=>{const f=photo.files[0];photo.value='';if(!f)return;
- try{const data=await shrink(f);send('',[{media_type:'image/jpeg',data}],'Card photo sent')}catch(err){bot('Error: '+err.message)}};
+ try{let data,mt='image/jpeg';
+  if(noResize(f)){if(f.size>4.5e6)throw new Error('That file is over 4.5 MB. Try a smaller photo or a screenshot of the card.');data=await rawB64(f);mt=f.type||'application/octet-stream'}
+  else data=await shrink(f);
+  send('',[{media_type:mt,data}],'Card photo sent')}catch(err){bot('Error: '+err.message)}};
 document.getElementById('f').onsubmit=e=>{e.preventDefault();const x=t.value.trim();if(!x)return;t.value='';send(x)};
 async function send(x,images,shown){me(shown||x);lock(true,'Thinking…');
  try{const r=await api(`/sessions/${sid}/messages`,{text:x,images:images||[]});bot(r.message);if(r.estimate&&r.estimate.status==='ok')card(r.estimate);

@@ -169,7 +169,7 @@
             "card-ocr"
           ]
         },
-        "description": "multipart/form-data. In Body, pick a JPEG/PNG/WebP file for 'front' (and optionally 'back'). Returns the fields read from the card, or {status: unreadable}. Test cards only.",
+        "description": "multipart/form-data. In Body, pick a JPEG, PNG, WebP, GIF, HEIC or PDF file for 'front' (and optionally 'back'). Returns the fields read from the card, or {status: unreadable}. Test cards only.",
         "body": {
           "mode": "formdata",
           "formdata": [

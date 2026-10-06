@@ -238,10 +238,10 @@ def build_router(get_svc, get_agent) -> APIRouter:
             data = await f.read(cardvision.MAX_BYTES + 1)
             if len(data) > cardvision.MAX_BYTES:
                 raise HTTPException(413, "Image too large (max 6 MB)")
-            mt = cardvision.sniff(data)
-            if not mt:
-                raise HTTPException(415, "Unsupported image type (use JPEG, PNG or WebP)")
-            images.append((data, mt))
+            prepared = await asyncio.to_thread(cardvision.prepare, data)
+            if not prepared:
+                raise HTTPException(415, f"Unsupported or unreadable file (use {cardvision.SUPPORTED_TEXT})")
+            images.append(prepared)
         return await cardvision.extract_card(images, svc.store)
 
     @router.post("/patient-sessions/eligibility")

@@ -6,3 +6,5 @@ pytest
 pytest-asyncio
 zipcodes
 python-multipart
+pillow
+pillow-heif

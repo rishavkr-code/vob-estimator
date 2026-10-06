@@ -128,9 +128,9 @@ def _strip_images(history: list) -> None:
     """Card photos contain PHI and are costly to resend: keep only a text note once the turn is done."""
     for m in history:
         c = m.get("content")
-        if m["role"] == "user" and isinstance(c, list) and any(b.get("type") == "image" for b in c):
+        if m["role"] == "user" and isinstance(c, list) and any(b.get("type") in ("image", "document") for b in c):
             texts = [b for b in c if b.get("type") == "text"]
-            m["content"] = [*texts, {"type": "text", "text": "[Insurance card photo shared, read, then deleted for "
+            m["content"] = [*texts, {"type": "text", "text": "[Insurance card photo or PDF shared, read, then deleted for "
                                                               "privacy. The details read from it were recorded.]"}]
 
 

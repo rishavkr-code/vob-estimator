@@ -111,9 +111,9 @@ The supported payer's `id` (`62308`) is what the app must send as `payerId` in e
 ### 2.3 Card photo reading
 
 `POST /v1/patient-sessions/card-ocr`  header `X-Session-Id`  **multipart/form-data** with optional file parts `front` and `back`
-(JPEG, PNG or WebP, up to 6 MB each; the type is checked from the file bytes).
+(**JPEG, PNG, WebP, GIF, HEIC or PDF**, up to 6 MB each, at most 2 files; the type is checked from the file bytes, not the extension).
 
-The backend reads the photo(s) with Claude vision. Images are processed in memory only: they are not stored, logged or kept in the session.
+The backend reads the photo(s) with Claude vision. HEIC (iPhone) photos are converted to JPEG in memory, upright and capped at 2000 px; PDFs are read directly. Images are processed in memory only: they are not stored, logged or kept in the session.
 No separate OCR service is used.
 
 Response `200` (matches the app's `OcrResult`):
@@ -144,7 +144,7 @@ Notes:
 - `payerId` is set only when the card's insurer matches a supported payer (e.g. Cigna becomes `62308`). Otherwise only `payerName` is returned.
 - `lowConfidenceFields` lists fields that were blurry or unsure: show them highlighted for the patient to confirm.
 - Card numbers that are not the member ID (group, RxBIN, RxPCN, phone numbers) are not returned as `memberId`. `groupNumber` is returned when printed.
-- Errors: `413` image over 6 MB, `415` not a JPEG/PNG/WebP, `401` session, `429` more than 15 reads per IP per hour.
+- Errors: `413` image over 6 MB, `415` unsupported or corrupt file, `401` session, `429` more than 15 reads per IP per hour.
 - The extraction is a best-effort reading. The patient must confirm every field on the confirm screen before eligibility runs.
 - Privacy: card photos go to the LLM provider (Anthropic). No BAA is in place in this prototype, so use synthetic or consenting test cards only.
 

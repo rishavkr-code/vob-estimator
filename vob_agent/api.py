@@ -1,4 +1,5 @@
 """HTTP API for the frontend. Run: uvicorn vob_agent.api:app --reload"""
+import asyncio
 import base64
 import os
 from pathlib import Path
@@ -154,10 +155,11 @@ async def message(sid: str, body: MessageBody):
                 raise HTTPException(400, "Image is not valid base64")
             if len(raw) > cardvision.MAX_BYTES:
                 raise HTTPException(413, "Image too large (max 6 MB)")
-            mt = cardvision.sniff(raw)
-            if not mt:
-                raise HTTPException(415, "Unsupported image type (use JPEG, PNG or WebP)")
-            images.append((mt, im.data))
+            prepared = await asyncio.to_thread(cardvision.prepare, raw)
+            if not prepared:
+                raise HTTPException(415, f"Unsupported or unreadable file (use {cardvision.SUPPORTED_TEXT})")
+            data, mt = prepared
+            images.append((mt, base64.standard_b64encode(data).decode()))
     elif not body.text.strip():
         raise HTTPException(400, "Empty message")
     reply = await agent.respond(s, body.text, images or None)

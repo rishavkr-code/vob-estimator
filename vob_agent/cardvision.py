@@ -12,11 +12,15 @@ from .session import normalize_dob
 log = logging.getLogger("vob.cardvision")
 MAX_BYTES = 6_000_000
 MAX_IMAGES = 2
-ALLOWED = {"image/jpeg", "image/png", "image/webp", "image/gif"}
+PDF = "application/pdf"
+HEIC = "image/heic"
+SUPPORTED_TEXT = "JPEG, PNG, WebP, GIF, HEIC or PDF"
+MAX_PIXELS = 40_000_000     # guards against decompression bombs
+MAX_LONG_EDGE = 2000        # HEIC photos are resized to this when converted
 
 TOOL = {
     "name": "report_card_fields",
-    "description": "Report what is printed on the health insurance card photo(s). Leave a field empty if it is not "
+    "description": "Report what is printed on the health insurance card photo(s) or PDF. Leave a field empty if it is not "
                    "printed or not legible. Never guess.",
     "input_schema": {"type": "object", "properties": {
         "readable": {"type": "boolean", "description": "False if this is not a health insurance card or is unreadable"},
@@ -38,8 +42,15 @@ _FIELD_MAP = {"first_name": "firstName", "last_name": "lastName", "member_id": "
               "group_number": "groupNumber", "payer_name": "payerName", "date_of_birth": "dateOfBirth"}
 
 
+HEIC_BRANDS = {b"heic", b"heix", b"hevc", b"hevx", b"heim", b"heis", b"mif1", b"msf1"}
+
+
 def sniff(data: bytes) -> str | None:
     """Real media type from magic bytes (the upload's declared type is not trusted)."""
+    if data[:5] == b"%PDF-":
+        return PDF
+    if data[4:8] == b"ftyp" and data[8:12] in HEIC_BRANDS:
+        return HEIC
     if data[:3] == b"\xff\xd8\xff":
         return "image/jpeg"
     if data[:8] == b"\x89PNG\r\n\x1a\n":
@@ -51,8 +62,41 @@ def sniff(data: bytes) -> str | None:
     return None
 
 
+def _heic_to_jpeg(data: bytes) -> bytes | None:
+    """iPhone HEIC photos are not accepted by the model: convert in memory, upright, capped size."""
+    try:
+        import io
+
+        import pillow_heif
+        from PIL import Image, ImageOps
+        pillow_heif.register_heif_opener()
+        im = Image.open(io.BytesIO(data))
+        if im.width * im.height > MAX_PIXELS:
+            return None
+        im = ImageOps.exif_transpose(im).convert("RGB")
+        im.thumbnail((MAX_LONG_EDGE, MAX_LONG_EDGE))
+        out = io.BytesIO()
+        im.save(out, format="JPEG", quality=88)
+        return out.getvalue()
+    except Exception as e:
+        log.warning("heic conversion failed: %s", type(e).__name__)
+        return None
+
+
+def prepare(data: bytes) -> tuple[bytes, str] | None:
+    """Validate by content and normalise to something the model accepts: (bytes, media_type) or None."""
+    mt = sniff(data)
+    if mt == HEIC:
+        jpg = _heic_to_jpeg(data)
+        return (jpg, "image/jpeg") if jpg else None
+    return (data, mt) if mt else None
+
+
 def image_block(media_type: str, data: bytes | str) -> dict:
+    """An image block, or a document block for PDFs."""
     b64 = data if isinstance(data, str) else base64.standard_b64encode(data).decode()
+    if media_type == PDF:
+        return {"type": "document", "source": {"type": "base64", "media_type": PDF, "data": b64}}
     return {"type": "image", "source": {"type": "base64", "media_type": media_type, "data": b64}}
 
 

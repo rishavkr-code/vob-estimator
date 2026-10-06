@@ -223,3 +223,49 @@ def test_photo_without_vision_asks_to_type(monkeypatch):
         sid = c.post("/sessions").json()["session_id"]
         r = c.post(f"/sessions/{sid}/messages", json={"images": [{"media_type": "image/png", "data": base64.b64encode(PNG).decode()}]})
         assert r.status_code == 200 and "type" in r.json()["message"].lower()
+
+
+def _sample_files():
+    import io
+
+    import pillow_heif
+    from PIL import Image
+    pillow_heif.register_heif_opener()
+    im = Image.new("RGB", (320, 200), "#e8702a")
+    out = {}
+    for name, fmt in (("jpeg", "JPEG"), ("png", "PNG"), ("webp", "WEBP"), ("heic", "HEIF"), ("pdf", "PDF")):
+        b = io.BytesIO()
+        im.save(b, format=fmt)
+        out[name] = b.getvalue()
+    return out
+
+
+def test_sniff_and_prepare_all_supported_types():
+    f = _sample_files()
+    assert [cardvision.sniff(f[k]) for k in ("jpeg", "png", "webp", "heic", "pdf")] == [
+        "image/jpeg", "image/png", "image/webp", "image/heic", "application/pdf"]
+    data, mt = cardvision.prepare(f["heic"])
+    assert mt == "image/jpeg" and cardvision.sniff(data) == "image/jpeg"     # HEIC becomes JPEG for the model
+    assert cardvision.prepare(f["pdf"])[1] == "application/pdf"
+    assert cardvision.prepare(b"%PDF-" and b"plain text") is None
+    assert cardvision.prepare(b"\x00\x00\x00\x18ftypheic" + b"junk") is None  # corrupt HEIC rejected, no crash
+    assert cardvision.image_block("application/pdf", b"x")["type"] == "document"
+    assert cardvision.image_block("image/jpeg", b"x")["type"] == "image"
+
+
+def test_card_ocr_accepts_heic_and_pdf(monkeypatch):
+    seen = []
+
+    async def fake_extract(images, store):
+        seen.append([t for _, t in images])
+        return {"status": "ok", "fields": {"memberId": "U1"}, "lowConfidenceFields": []}
+    monkeypatch.setattr(cardvision, "extract_card", fake_extract)
+    f = _sample_files()
+    with _client() as c:
+        sid = _session(c)
+        for key, mime in (("heic", "image/heic"), ("pdf", "application/pdf"), ("webp", "image/webp")):
+            r = c.post("/v1/patient-sessions/card-ocr", headers=H(sid), files={"front": (f"c.{key}", f[key], mime)})
+            assert r.status_code == 200 and r.json()["status"] == "ok", key
+        assert seen == [["image/jpeg"], ["application/pdf"], ["image/webp"]]
+        bad = c.post("/v1/patient-sessions/card-ocr", headers=H(sid), files={"front": ("c.pdf", b"not really a pdf", "application/pdf")})
+        assert bad.status_code == 415
