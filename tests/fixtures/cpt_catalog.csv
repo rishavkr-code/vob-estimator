@@ -1,0 +1,15 @@
+cpt,plain_name,unit_basis,stc_primary,stc_fallbacks,notes
+99204,Office visit (new patient),per_visit,98,96;BY;A0,Placeholder STC mapping; validate with Stedi responses
+99213,Office visit (established patient),per_visit,98,96;BY;A0,Placeholder STC mapping
+99214,Office visit (established patient - extended),per_visit,98,96;BY;A0,Placeholder STC mapping
+95004,Allergy skin test,per_unit,79,GY;73;5,Placeholder STC mapping
+95024,Intradermal allergy test,per_unit,79,GY;73;5,Placeholder STC mapping
+95165,Allergy serum preparation,per_unit,79,GY;80;96,Placeholder STC mapping
+95117,Allergy shot injection,per_visit,79,GY;80;96,Placeholder STC mapping
+95115,Allergy shot (single injection),per_visit,79,GY;80;96,Placeholder STC mapping
+95180,Rapid desensitization,per_hour,79,GY;80,Placeholder STC mapping
+94375,Breathing test (flow-volume loop),per_visit,BT,5;73;PU,Placeholder STC mapping
+94010,Spirometry,per_visit,BT,5;73;PU,Placeholder STC mapping
+94060,Spirometry before and after bronchodilator,per_visit,BT,5;73;PU,Placeholder STC mapping
+96401,Biologic injection administration,per_visit,96,98;A0,Placeholder STC mapping
+J2357,Biologic medication (Xolair),per_unit,80,96,Placeholder; real J-code and units depend on drug and dose

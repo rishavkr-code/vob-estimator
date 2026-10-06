@@ -1,0 +1,38 @@
+{
+  "data_source": {
+    "type": "google_sheet",
+    "refresh_seconds": 300,
+    "sheets": {
+      "clinics": "1gIJ3lypbNIHexihAL5y509poikn99h4Pm1FjOO31Bm0",
+      "trading_partners": "1pTB353MFnWnN99vhFaHy99qY_gDG4G-veK9bdV3MQxY",
+      "bundles": "1hU66k_JjEhnER3JHa5_Pign_wu8UOJyT8BDgyHeLK2k",
+      "cpt_catalog": "1UM8eFlb3PjsOYGInWjNgezmUj19yeRnRNOch0_fetDs",
+      "fee_schedule": "1mFolxoS5oPAyu2mLZ9-TKCMy77GqmmwmZhWscXbbz0E"
+    },
+    "test_fixture_dir": "tests/fixtures"
+  },
+  "date_of_service": "today",
+  "clinics_in_scope": [
+    "1609834373",
+    "1871550590"
+  ],
+  "estimate_mode": "range",
+  "show_clinic_comparison": true,
+  "disclaimer": "This is an estimate based on your current plan benefits. Actual cost may vary based on services rendered.",
+  "patient_slots_required": [
+    "first_name",
+    "last_name",
+    "member_id",
+    "date_of_birth",
+    "payer"
+  ],
+  "stedi": {
+    "plan_level_stcs": [
+      "30"
+    ],
+    "max_stcs_per_call_default": 4
+  },
+  "payers_in_scope": [
+    "62308"
+  ]
+}

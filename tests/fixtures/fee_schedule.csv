@@ -1,0 +1,15 @@
+trading_partner_id,npi,cpt,allowed_amount,unit_basis,description,source,source_file
+62308,1871550590,99204,200.00,per_visit,synthetic test rate,SYNTHETIC,fixture
+62308,1871550590,99213,100.00,per_visit,synthetic test rate,SYNTHETIC,fixture
+62308,1871550590,95004,10.00,per_unit,synthetic test rate,SYNTHETIC,fixture
+62308,1871550590,95024,20.00,per_unit,synthetic test rate,SYNTHETIC,fixture
+62308,1871550590,94375,60.00,per_visit,synthetic test rate,SYNTHETIC,fixture
+62308,1871550590,94010,50.00,per_visit,synthetic test rate,SYNTHETIC,fixture
+62308,1871550590,94060,90.00,per_visit,synthetic test rate,SYNTHETIC,fixture
+62308,1609834373,99204,150.00,per_visit,synthetic test rate,SYNTHETIC,fixture
+62308,1609834373,99213,80.00,per_visit,synthetic test rate,SYNTHETIC,fixture
+62308,1609834373,95004,5.00,per_unit,synthetic test rate,SYNTHETIC,fixture
+62308,1609834373,95024,10.00,per_unit,synthetic test rate,SYNTHETIC,fixture
+62308,1609834373,94375,40.00,per_visit,synthetic test rate,SYNTHETIC,fixture
+62308,1609834373,94010,30.00,per_visit,synthetic test rate,SYNTHETIC,fixture
+62308,1609834373,94060,50.00,per_visit,synthetic test rate,SYNTHETIC,fixture

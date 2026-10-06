@@ -1,0 +1,17 @@
+{
+  "first_message": {
+    "text": "Hi! I can estimate what you'd pay out of pocket for your allergy visit. What brings you in?",
+    "input_locked": true,
+    "unlock_on": "option_selected"
+  },
+  "options": [
+    {"option_id": "ALLERGY_TEST", "label": "I need allergy testing", "bundle_id": "ALLERGY_TEST_NEW", "follow_up_question": "Have you been allergy tested before?", "follow_up_alt_bundle_id": "ALLERGY_TEST_EST"},
+    {"option_id": "SHOTS_START", "label": "I'm starting allergy shots", "bundle_id": "SHOTS_START"},
+    {"option_id": "SHOT_REGULAR", "label": "I'm coming in for my regular allergy shot", "bundle_id": "SHOT_REGULAR"},
+    {"option_id": "RAPID_DESENS", "label": "My doctor recommended rapid desensitization", "bundle_id": "RAPID_DESENS"},
+    {"option_id": "BREATHING_TEST", "label": "I need a breathing/lung function test", "bundle_id": "BREATHING_TEST"},
+    {"option_id": "BIOLOGIC", "label": "I'm starting a biologic (Xolair, Dupixent, etc.)", "bundle_id": "BIOLOGIC"},
+    {"option_id": "FOLLOW_UP", "label": "I have a follow-up appointment", "bundle_id": "FOLLOW_UP"},
+    {"option_id": "NOT_SURE", "label": "I'm not sure - my doctor referred me", "bundle_id": null}
+  ]
+}

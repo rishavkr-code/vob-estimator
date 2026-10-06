@@ -8,3 +8,7 @@ debug/
 vob_data.xlsx
 patient_vob_app_spec.pdf
 .DS_Store
+orginal_data/
+npi/
+stc_code.txt
+data/

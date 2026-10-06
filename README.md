@@ -17,14 +17,14 @@ cp .env.example .env            # add keys; STEDI_MODE=mock needs none for Stedi
 ```
 
 Reference data (clinics, payers, bundles, CPT catalog, fee schedule) is read live from Google Sheets
-(ids in `config/settings.json`, shared as "Anyone with the link: Viewer"). `data/*.csv` are test fixtures only.
+(ids in `config/settings.json`, shared as "Anyone with the link: Viewer"). `tests/fixtures/*.csv` are synthetic test fixtures only.
 
 ## Layout
 - `vob_agent/api.py` FastAPI app and chat endpoints
 - `vob_agent/agent.py` LLM tool-calling loop (OpenRouter or Anthropic)
 - `vob_agent/stedi.py`, `parser271.py` Stedi client and 271 parsing
 - `vob_agent/engine.py` cost-share engine (copay, deductible, coinsurance, out-of-pocket max) and comparison
-- `config/` menu and settings; `data/` test fixtures; `tests/`
+- `config/` menu and settings; `tests/` with synthetic fixtures in `tests/fixtures/`
 
 ## Status
 Prototype. Use synthetic or consenting test patients only: no HIPAA agreements are in place with the LLM

@@ -1,0 +1,2 @@
+trading_partner_id,handler_key,payer_name,aliases,max_stcs_per_call,verified,notes
+62308,cigna,Cigna,cigna;evernorth;cigna healthcare,4,true,From Stedi handler config screen
