@@ -135,9 +135,12 @@ Response `200` (matches the app's `OcrResult`):
 or, when nothing usable was read, not an insurance card, or vision is unavailable:
 ```json
 {
-  "status": "unreadable"
+  "status": "unreadable",
+  "reason": "not_a_card"
 }
 ```
+
+`reason` is an optional debugging code (the app can ignore it): `no_file`, `vision_unavailable` (server missing the Anthropic key), `model_error:<ErrorName>`, `model_did_not_call_tool`, `not_a_card`, `no_fields_found`. HTTP status is still 200; always check `status`.
 
 Notes:
 - `fields` is partial. Only fields actually printed on the card are returned. **`dateOfBirth` is usually absent** (cards rarely print it), so the app must still ask for it.

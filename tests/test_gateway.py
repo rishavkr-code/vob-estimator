@@ -50,7 +50,7 @@ def test_full_mobile_flow():
         payers = c.get("/v1/payers?specialty=allergy").json()
         assert payers[0] == {"id": "62308", "name": "Cigna", "supported": True}
         assert any(not p["supported"] for p in payers)
-        assert c.post("/v1/patient-sessions/card-ocr", headers=H(sid)).json() == {"status": "unreadable"}
+        assert c.post("/v1/patient-sessions/card-ocr", headers=H(sid)).json() == {"status": "unreadable", "reason": "no_file"}
 
         el = c.post("/v1/patient-sessions/eligibility", json=CARD, headers=H(sid)).json()
         assert el["status"] == "ok"

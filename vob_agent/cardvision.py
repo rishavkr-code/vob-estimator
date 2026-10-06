@@ -105,27 +105,45 @@ def vision_enabled() -> bool:
     return bool(os.getenv("ANTHROPIC_API_KEY")) and provider in ("", "anthropic")
 
 
+def _unreadable(reason: str) -> dict:
+    """`reason` is a short code (no patient data). The app ignores unknown fields; it is for debugging."""
+    log.warning("card unreadable: %s", reason)
+    return {"status": "unreadable", "reason": reason}
+
+
+async def _ask(client, content, extra_text: str = "") -> object:
+    msgs = [{"role": "user", "content": content + ([{"type": "text", "text": extra_text}] if extra_text else [])}]
+    return await client.messages.create(
+        model=os.getenv("ANTHROPIC_MODEL", "claude-sonnet-5-5"), max_tokens=700, system=SYSTEM,
+        tools=[TOOL], messages=msgs)
+
+
 async def extract_card(images: list[tuple[bytes, str]], store) -> dict:
     """images: [(bytes, media_type)]. Returns {'status': 'ok', 'fields': {...}, 'lowConfidenceFields': [...]}
-    shaped like the mobile app's OcrResult, or {'status': 'unreadable'}."""
-    if not images or not vision_enabled():
-        return {"status": "unreadable"}
+    shaped like the mobile app's OcrResult, or {'status': 'unreadable', 'reason': code}."""
+    if not images:
+        return _unreadable("no_file")
+    if not vision_enabled():
+        return _unreadable("vision_unavailable")  # ANTHROPIC_API_KEY missing or LLM_PROVIDER is not anthropic
     from anthropic import AsyncAnthropic
     client = AsyncAnthropic()
     content = [image_block(mt, data) for data, mt in images[:MAX_IMAGES]]
     content.append({"type": "text", "text": "Extract the insurance details from this card."})
-    try:
-        resp = await client.messages.create(
-            model=os.getenv("ANTHROPIC_MODEL", "claude-sonnet-5-5"), max_tokens=600, system=SYSTEM,
-            tools=[TOOL], messages=[{"role": "user", "content": content}])
-    except Exception as e:  # never log the request: it holds the card image
-        log.warning("card read failed: %s", type(e).__name__)
-        return {"status": "unreadable"}
-    raw = next((b.input for b in resp.content if b.type == "tool_use"), None) or {}
-    if not raw.get("readable"):
-        return {"status": "unreadable"}
+    raw = None
+    for attempt in range(2):
+        try:  # never log the request: it holds the card image
+            resp = await _ask(client, content, "" if attempt == 0 else
+                              "Call report_card_fields now with whatever is printed. Do not reply in text.")
+        except Exception as e:
+            return _unreadable(f"model_error:{type(e).__name__}")
+        raw = next((b.input for b in resp.content if b.type == "tool_use"), None)
+        if raw is not None:
+            break
+        log.warning("card read: model answered without calling the tool (attempt %d)", attempt + 1)
+    if raw is None:
+        return _unreadable("model_did_not_call_tool")
 
-    fields, low = {}, []
+    fields = {}
     for k in ("first_name", "last_name", "member_id", "group_number", "payer_name"):
         v = (raw.get(k) or "").strip()
         if k == "member_id":
@@ -141,5 +159,6 @@ async def extract_card(images: list[tuple[bytes, str]], store) -> dict:
             fields["payerId"], fields["payerName"] = matches[0].trading_partner_id, matches[0].name
     low = [_FIELD_MAP[k] for k in raw.get("low_confidence", []) if _FIELD_MAP.get(k) in fields]
     if not any(k in fields for k in ("memberId", "firstName", "lastName")):
-        return {"status": "unreadable"}
+        # the model said it is not a card / nothing legible, and no usable field came back
+        return _unreadable("not_a_card" if raw.get("readable") is False else "no_fields_found")
     return {"status": "ok", "fields": fields, "lowConfidenceFields": low}
