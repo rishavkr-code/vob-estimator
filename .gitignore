@@ -1,0 +1,10 @@
+.env
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+debug/
+*.apk
+vob_data.xlsx
+patient_vob_app_spec.pdf
+.DS_Store
