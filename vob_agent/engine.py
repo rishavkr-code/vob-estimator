@@ -49,10 +49,11 @@ def _scenario(lines: list[BundleLine], which: str, store: DataStore, pb: PlanBen
     oop = pb.oop_remaining if pb.oop_remaining is not None else float("inf")
     work = []
     for bl in lines:
-        info = store.catalog.get(bl.cpt)
+        cpt = bl.cpt_max if (which == "max" and bl.cpt_max) else bl.cpt
+        info = store.catalog.get(cpt)
         units = bl.units_min if which == "min" else bl.units_max
-        fee = store.fees.get((tp_id, npi, bl.cpt))
-        row = {"cpt": bl.cpt, "name": info.plain_name if info else bl.cpt, "units": units,
+        fee = store.fees.get((tp_id, npi, cpt))
+        row = {"cpt": cpt, "name": info.plain_name if info else cpt, "units": units,
                "repeat_visits": bl.repeat_visits, "units_text": _units_text(units, bl.repeat_visits, ""),
                "sequence": bl.sequence, "estimable": False, "patient_cost": None,
                "allowed_total": None, "cost_type": None, "note": ""}
@@ -61,7 +62,7 @@ def _scenario(lines: list[BundleLine], which: str, store: DataStore, pb: PlanBen
         elif not info:
             row["note"] = "Procedure not in catalog"
         else:
-            stc, ben, plan_level = benefit_for(bl.cpt, info, pb)
+            stc, ben, plan_level = benefit_for(cpt, info, pb)
             if ben is None:
                 row["note"] = "Plan did not report a benefit for this service"
             elif ben.not_covered:
@@ -100,8 +101,8 @@ def _scenario(lines: list[BundleLine], which: str, store: DataStore, pb: PlanBen
 
 def estimate_clinic(store: DataStore, bundle_id: str, pb: PlanBenefits, tp_id: str, npi: str) -> dict:
     lines = store.bundles[bundle_id]
-    lo, ded_lo, _ = _scenario(lines, "min", store, pb, tp_id, npi)
-    hi, ded_hi, _ = _scenario(lines, "max", store, pb, tp_id, npi)
+    lo, ded_lo, oop_lo = _scenario(lines, "min", store, pb, tp_id, npi)
+    hi, ded_hi, oop_hi = _scenario(lines, "max", store, pb, tp_id, npi)
     out_lines = []
     for a, b in zip(lo, hi):
         out_lines.append({
@@ -109,8 +110,8 @@ def estimate_clinic(store: DataStore, bundle_id: str, pb: PlanBenefits, tp_id: s
             "units_low": a["units_text"], "units_high": b["units_text"],
             "cost_type": a["cost_type"],
             # shared-deductible ordering can invert a single line; keep each range low <= high
-            "low": None if a["patient_cost"] is None else min(a["patient_cost"], b["patient_cost"]),
-            "high": None if a["patient_cost"] is None else max(a["patient_cost"], b["patient_cost"]),
+            "low": None if None in (a["patient_cost"], b["patient_cost"]) else min(a["patient_cost"], b["patient_cost"]),
+            "high": None if None in (a["patient_cost"], b["patient_cost"]) else max(a["patient_cost"], b["patient_cost"]),
             "note": a["note"] or b["note"]})
     est = [l for l in out_lines if l["estimable"]]
     warnings = [f"{l['name']}: {l['note']}" for l in out_lines if not l["estimable"]]
@@ -118,11 +119,15 @@ def estimate_clinic(store: DataStore, bundle_id: str, pb: PlanBenefits, tp_id: s
     clinic = store.clinics.get(npi)
     return {
         "npi": npi, "clinic": clinic.name if clinic else npi, "bundle_id": bundle_id, "lines": out_lines,
-        "total_low": _money(sum(a["patient_cost"] for a in lo if a["estimable"])),
-        "total_high": _money(sum(b["patient_cost"] for b in hi if b["estimable"])),
+        # only lines priced in BOTH scenarios count, so a gap never understates one end of the range
+        "total_low": _money(sum(a["patient_cost"] for a, b in zip(lo, hi) if a["estimable"] and b["estimable"])),
+        "total_high": _money(sum(b["patient_cost"] for a, b in zip(lo, hi) if a["estimable"] and b["estimable"])),
         "complete": not warnings, "warnings": warnings, "assumptions": assumptions,
         "deductible_remaining_before": pb.deductible_remaining,
         "deductible_remaining_after_low": _money(ded_lo), "deductible_remaining_after_high": _money(ded_hi),
+        "oop_remaining_before": pb.oop_remaining,
+        "oop_remaining_after_low": None if oop_lo == float("inf") else _money(oop_lo),
+        "oop_remaining_after_high": None if oop_hi == float("inf") else _money(oop_hi),
         "fee_sources": sorted({store.fees[(tp_id, npi, l["cpt"])].source for l in out_lines
                                if (tp_id, npi, l["cpt"]) in store.fees}),
     }

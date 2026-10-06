@@ -34,5 +34,31 @@
   },
   "payers_in_scope": [
     "62308"
-  ]
+  ],
+  "session_idle_seconds": 600,
+  "provider_radius_miles": null,
+  "other_payers": [
+    "Aetna",
+    "UnitedHealthcare",
+    "Blue Cross Blue Shield",
+    "Humana",
+    "Medicare",
+    "Kaiser Permanente"
+  ],
+  "intent_bundles": {
+    "allergy_testing_new": "ALLERGY_TEST_NEW",
+    "allergy_testing_established": "ALLERGY_TEST_EST",
+    "starting_shots": "SHOTS_START",
+    "regular_shot": "SHOT_REGULAR",
+    "rapid_desensitization": "RAPID_DESENS",
+    "breathing_test": "BREATHING_TEST",
+    "biologic_start": "BIOLOGIC",
+    "follow_up": "FOLLOW_UP",
+    "not_sure": "ALLERGY_TEST_NEW"
+  },
+  "limits": {
+    "sessions_per_ip_per_hour": 30,
+    "eligibility_per_session": 3,
+    "eligibility_per_ip_per_hour": 20
+  }
 }

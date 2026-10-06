@@ -37,6 +37,14 @@ class Clinic:
     npi: str
     name: str
     has_fee_data: bool
+    # optional columns in the clinics sheet; empty until the sheet is filled in
+    address_line: str = ""
+    city: str = ""
+    state: str = ""
+    zip: str = ""
+    phone: str = ""
+    lat: float | None = None
+    lng: float | None = None
 
 
 @dataclass
@@ -63,6 +71,7 @@ class BundleLine:
     units_max: float
     repeat_visits: int
     sequence: int
+    cpt_max: str = ""  # optional costlier code used only for the high scenario (e.g. 99214 for 99213)
 
 
 @dataclass
@@ -70,6 +79,13 @@ class Fee:
     allowed: float
     unit_basis: str
     source: str
+
+
+def _num(x):
+    try:
+        return float(x)
+    except (TypeError, ValueError):
+        return None
 
 
 def _norm(s: str) -> str:
@@ -123,7 +139,10 @@ class DataStore:
         """Reload all tables; if any table fails validation keep the previous good data."""
         rows = {t: self._validated(t) for t in REQUIRED}
         self.clinics = {
-            r["npi"]: Clinic(r["npi"], r["org_name"], r["has_fee_data"].strip().lower() == "true")
+            r["npi"]: Clinic(r["npi"], r["org_name"], r["has_fee_data"].strip().lower() == "true",
+                             (r.get("address_line") or "").strip(), (r.get("city") or "").strip(),
+                             (r.get("state") or "").strip(), (r.get("zip") or "").strip(),
+                             (r.get("phone") or "").strip(), _num(r.get("lat")), _num(r.get("lng")))
             for r in rows["clinics"]}
         self.payers = [
             Payer(r["trading_partner_id"], r["handler_key"], r["payer_name"],
@@ -138,7 +157,7 @@ class DataStore:
         for r in rows["bundles"]:
             bundles.setdefault(r["bundle_id"], []).append(
                 BundleLine(r["cpt"], float(r["units_min"]), float(r["units_max"]),
-                           int(r["repeat_visits"]), int(r["sequence"])))
+                           int(r["repeat_visits"]), int(r["sequence"]), (r.get("cpt_max") or "").strip()))
         self.bundles = {k: sorted(v, key=lambda b: b.sequence) for k, v in bundles.items()}
         self.fees = {}
         for r in rows["fee_schedule"]:

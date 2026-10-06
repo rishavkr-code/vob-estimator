@@ -13,3 +13,5 @@ trading_partner_id,npi,cpt,allowed_amount,unit_basis,description,source,source_f
 62308,1609834373,94375,40.00,per_visit,synthetic test rate,SYNTHETIC,fixture
 62308,1609834373,94010,30.00,per_visit,synthetic test rate,SYNTHETIC,fixture
 62308,1609834373,94060,50.00,per_visit,synthetic test rate,SYNTHETIC,fixture
+62308,1871550590,99214,130.00,per_visit,synthetic test rate,SYNTHETIC,fixture
+62308,1609834373,99214,100.00,per_visit,synthetic test rate,SYNTHETIC,fixture

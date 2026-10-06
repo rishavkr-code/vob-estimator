@@ -2,13 +2,14 @@
 import os
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from .agent import Agent
 from .data import ROOT, DataStore, load_menu
+from .gateway import build_router
 from .session import SessionService
 from .stedi import get_client
 
@@ -29,6 +30,7 @@ agent = Agent(svc)
 
 app = FastAPI(title="VOB Estimate Agent")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+app.include_router(build_router(lambda: svc, lambda: agent))  # /v1/... endpoints for the mobile app
 
 
 class SelectBody(BaseModel):
@@ -141,8 +143,16 @@ def get_estimate(sid: str):
     return s.estimate or {"status": "not_ready", "missing": s.missing()}
 
 
+@app.get("/health", include_in_schema=False)
+def health():
+    return {"ok": True}
+
+
 @app.post("/admin/reload")
-def reload_data():
+def reload_data(x_admin_token: str | None = Header(None)):
+    token = os.getenv("ADMIN_TOKEN")  # unset = endpoint disabled
+    if not token or x_admin_token != token:
+        raise HTTPException(403, "forbidden")
     store.refresh()
     return {"sources": store.source, "fee_rows": len(store.fees), "last_error": store.last_error}
 

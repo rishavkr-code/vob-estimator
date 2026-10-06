@@ -1,6 +1,7 @@
 """Session state, patient-slot validation and the background eligibility fetch."""
 import asyncio
 import re
+import time
 import uuid
 from dataclasses import dataclass, field
 from datetime import date
@@ -42,6 +43,13 @@ class Session:
     eligibility_task: asyncio.Task | None = None
     estimate: dict | None = None
     history: list = field(default_factory=list)  # LLM message history
+    # --- mobile-app (gateway) flow ---
+    touched: float = field(default_factory=time.time)
+    gateway: bool = False                 # True: eligibility is driven by /v1 endpoints, not the chat flow
+    benefits: object | None = None        # parsed PlanBenefits shared by every clinic estimate
+    benefits_task: asyncio.Task | None = None
+    benefits_key: str | None = None
+    eligibility_calls: int = 0
 
     @property
     def unlocked(self) -> bool:
@@ -65,7 +73,43 @@ class SessionService:
         return s
 
     def get(self, sid: str) -> Session:
-        return self.sessions[sid]
+        s = self.sessions[sid]
+        idle = self.store.settings.get("session_idle_seconds", 600)
+        if time.time() - s.touched > idle:
+            self.sessions.pop(sid, None)
+            raise KeyError(sid)
+        s.touched = time.time()
+        return s
+
+    def delete(self, sid: str) -> None:
+        s = self.sessions.pop(sid, None)
+        if s:
+            for t in (s.eligibility_task, s.benefits_task):
+                if t and not t.done():
+                    t.cancel()
+
+    def purge_expired(self) -> None:
+        idle = self.store.settings.get("session_idle_seconds", 600)
+        for sid in [k for k, v in self.sessions.items() if time.time() - v.touched > idle]:
+            self.delete(sid)
+
+    async def fetch_benefits(self, s: Session):
+        """One set of 270s (batched STCs) for the first priced clinic; every clinic estimate reuses the result.
+
+        Used by the mobile flow, where eligibility runs before a clinic is chosen. Cigna returned identical
+        plan benefits for different provider NPIs, so one lookup is enough (and ~6x cheaper than per clinic).
+        """
+        payer = next(p for p in self.store.payers if p.trading_partner_id == s.payer_tp_id)
+        clinics = self.store.priced_clinics(payer.trading_partner_id)
+        if not clinics:
+            raise RuntimeError("no priced clinic available for eligibility")
+        stcs = self.all_stcs()
+        groups = [stcs[i:i + payer.max_stcs_per_call] for i in range(0, len(stcs), payer.max_stcs_per_call)]
+        pt, c = s.patient, clinics[0]
+        reqs = [build_request(pt["first_name"], pt["last_name"], pt["member_id"], pt["date_of_birth"],
+                              payer.trading_partner_id, c.npi, c.name, g) for g in groups]
+        s.benefits = parse_271(await asyncio.gather(*(self.stedi.check(r) for r in reqs)))
+        return s.benefits
 
     # ---- eligibility ----------------------------------------------------
     def all_stcs(self) -> list[str]:
@@ -92,6 +136,8 @@ class SessionService:
         return out
 
     def maybe_start_eligibility(self, s: Session):
+        if s.gateway:
+            return
         if s.ready() and s.eligibility_task is None:
             s.eligibility_task = asyncio.create_task(self._fetch(s))
 

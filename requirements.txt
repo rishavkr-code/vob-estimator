@@ -4,3 +4,4 @@ httpx
 anthropic
 pytest
 pytest-asyncio
+zipcodes

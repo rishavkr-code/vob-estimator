@@ -21,6 +21,7 @@ class PlanBenefits:
     oop_remaining: float | None = None
     by_stc: dict = field(default_factory=dict)
     notes: list = field(default_factory=list)
+    error_codes: list = field(default_factory=list)
 
 
 def _f(x):
@@ -47,6 +48,8 @@ def parse_271(responses: list[dict]) -> PlanBenefits:
         entries += r.get("benefitsInformation", [])
         for err in r.get("errors", []):
             pb.notes.append(f"payer error: {err.get('description') or err.get('code')}")
+            if err.get("code"):
+                pb.error_codes.append(str(err["code"]))
     if any(e.get("code") == "1" for e in entries):
         pb.active = True
     entries = [e for e in entries if _in_network(e)]
