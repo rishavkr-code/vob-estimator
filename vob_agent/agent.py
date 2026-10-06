@@ -19,7 +19,11 @@ Keep replies short."""
 
 COLLECT = """STEP 1 - identify the patient. The app already greeted them and asked for their name. Collect, conversationally and one or two at a time: first name, last name, \
 insurance member ID, date of birth, and insurance company. Call record_patient_info each time you learn something. \
-Patients always give their date of birth as MM/DD/YYYY (US, month first): never ask which format, and never ask them to confirm day versus month. Do NOT ask why they are visiting; the app shows a menu for that right after. When nothing is missing, say one short \
+Patients always give their date of birth as MM/DD/YYYY (US, month first): never ask which format, and never ask them to confirm day versus month. If the patient sends a photo of their insurance card, read it yourself: record the first name, last name, member ID \
+and insurance company you can read with record_patient_info (date of birth only if printed), then ask only for what \
+is still missing, usually just the date of birth. If a field is blurry or unsure, ask them to confirm it. Photos are deleted right after you read them, so you will not see an earlier photo again: that is expected. \
+Never retract or doubt details you already recorded from a photo. If the photo \
+is unreadable, say so kindly and ask them to type the details. Do NOT ask why they are visiting; the app shows a menu for that right after. When nothing is missing, say one short \
 line thanking them (the insurance check is already running in the background, never tell them to wait) and stop."""
 
 ASSIST = """You help a patient work out which kind of visit fits their situation. Ask one to three short, \
@@ -63,6 +67,8 @@ class OpenRouterLLM:
             c = m["content"]
             if isinstance(c, str):
                 out.append({"role": m["role"], "content": c})
+            elif m["role"] == "user" and any(b.get("type") == "text" for b in c) and not any(b.get("type") == "tool_result" for b in c):
+                out.append({"role": "user", "content": "\n".join(b["text"] for b in c if b.get("type") == "text")})
             elif m["role"] == "assistant":
                 text = "\n".join(b["text"] for b in c if b["type"] == "text")
                 calls = [{"id": b["id"], "type": "function",
@@ -118,6 +124,16 @@ def _blocks(resp) -> list[dict]:
     return out
 
 
+def _strip_images(history: list) -> None:
+    """Card photos contain PHI and are costly to resend: keep only a text note once the turn is done."""
+    for m in history:
+        c = m.get("content")
+        if m["role"] == "user" and isinstance(c, list) and any(b.get("type") == "image" for b in c):
+            texts = [b for b in c if b.get("type") == "text"]
+            m["content"] = [*texts, {"type": "text", "text": "[Insurance card photo shared, read, then deleted for "
+                                                              "privacy. The details read from it were recorded.]"}]
+
+
 class Agent:
     def __init__(self, svc: SessionService, llm=None):
         self.svc, self._llm = svc, llm
@@ -137,8 +153,21 @@ class Agent:
             reason=reason, bundles=", ".join(sorted(self.svc.store.bundles)))
         return SYSTEM.format(phase_text=text)
 
-    async def respond(self, s: Session, text: str) -> str:
-        s.history.append({"role": "user", "content": text})
+    async def respond(self, s: Session, text: str, images: list | None = None) -> str:
+        """images: [(media_type, base64_str)]. They are shown to the model for this turn only, then dropped from history."""
+        if images:
+            from .cardvision import image_block
+            blocks = [image_block(mt, b64) for mt, b64 in images]
+            blocks.append({"type": "text", "text": text or "Here is a photo of my insurance card."})
+            s.history.append({"role": "user", "content": blocks})
+        else:
+            s.history.append({"role": "user", "content": text})
+        try:
+            return await self._loop(s)
+        finally:
+            _strip_images(s.history)
+
+    async def _loop(self, s: Session) -> str:
         for _ in range(6):
             resp = await self.llm.complete(self._system(s), s.history, TOOL_SPECS)
             blocks = _blocks(resp)

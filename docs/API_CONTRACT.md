@@ -108,18 +108,45 @@ Response `200`:
 
 The supported payer's `id` (`62308`) is what the app must send as `payerId` in eligibility.
 
-### 2.3 Card OCR (stub)
+### 2.3 Card photo reading
 
-`POST /v1/patient-sessions/card-ocr`  header `X-Session-Id`. Multipart images are accepted but **ignored and not stored**.
+`POST /v1/patient-sessions/card-ocr`  header `X-Session-Id`  **multipart/form-data** with optional file parts `front` and `back`
+(JPEG, PNG or WebP, up to 6 MB each; the type is checked from the file bytes).
 
-Always returns `200`:
+The backend reads the photo(s) with Claude vision. Images are processed in memory only: they are not stored, logged or kept in the session.
+No separate OCR service is used.
+
+Response `200` (matches the app's `OcrResult`):
+```json
+{
+  "status": "ok",
+  "fields": {
+    "firstName": "Jane",
+    "lastName": "Doe",
+    "memberId": "U1234567890",
+    "groupNumber": "3344556",
+    "payerName": "Cigna",
+    "payerId": "62308"
+  },
+  "lowConfidenceFields": []
+}
+```
+
+or, when nothing usable was read, not an insurance card, or vision is unavailable:
 ```json
 {
   "status": "unreadable"
 }
 ```
 
-The app should fall through to manual entry (already implemented for `unreadable`).
+Notes:
+- `fields` is partial. Only fields actually printed on the card are returned. **`dateOfBirth` is usually absent** (cards rarely print it), so the app must still ask for it.
+- `payerId` is set only when the card's insurer matches a supported payer (e.g. Cigna becomes `62308`). Otherwise only `payerName` is returned.
+- `lowConfidenceFields` lists fields that were blurry or unsure: show them highlighted for the patient to confirm.
+- Card numbers that are not the member ID (group, RxBIN, RxPCN, phone numbers) are not returned as `memberId`. `groupNumber` is returned when printed.
+- Errors: `413` image over 6 MB, `415` not a JPEG/PNG/WebP, `401` session, `429` more than 15 reads per IP per hour.
+- The extraction is a best-effort reading. The patient must confirm every field on the confirm screen before eligibility runs.
+- Privacy: card photos go to the LLM provider (Anthropic). No BAA is in place in this prototype, so use synthetic or consenting test cards only.
 
 ### 2.4 Eligibility (runs the 270/271)
 
@@ -571,7 +598,7 @@ endSession(sessionId: string): Promise<void>;
 
 | Item | State |
 |---|---|
-| Card OCR | Stub, always `unreadable` |
+| Card photo reading | Claude vision (best effort, patient confirms). Test cards only until a BAA is in place |
 | Clinic address, phone, distance | From unverified public listings; distance is ZIP-centroid based |
 | Payers | Cigna only |
 | Biologic drug choice | `drugId` ignored |

@@ -15,12 +15,12 @@
 form{display:flex;gap:8px;padding:12px 16px;border-top:1px solid var(--line);background:var(--card)}
 input{flex:1;padding:11px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink);font:inherit}
 input:disabled{opacity:.5}form button{padding:0 18px;border:0;border-radius:10px;background:var(--acc);color:#fff;font:inherit;cursor:pointer}
-form button:disabled{opacity:.5}
+form button:disabled{opacity:.5}#att{background:var(--bg);color:var(--ink);border:1px solid var(--line);font-size:13px;padding:0 12px}
 .est{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin:8px 0}
 .est h3{margin:0 0 8px;font-size:15px}.row{display:flex;justify-content:space-between;gap:12px;padding:4px 0;border-bottom:1px dashed var(--line)}
 .row span:last-child{white-space:nowrap}.tot{font-weight:700;border:0;padding-top:8px}.sub{color:var(--mute);font-size:13px}.scroll{overflow:auto}table{border-collapse:collapse;width:100%;font-size:13px}th,td{padding:5px 6px;border-bottom:1px dashed var(--line);text-align:right}th:first-child,td:first-child{text-align:left}.tt td{border:0;padding-top:8px}.win{margin-top:8px;font-weight:600;color:var(--acc)}
 </style></head><body><div id="app"><div id="log"></div>
-<form id="f"><input id="t" placeholder="Type your message" autocomplete="off"><button id="b">Send</button></form></div>
+<form id="f"><button type="button" id="att" title="Attach a photo of your insurance card" aria-label="Attach insurance card photo">Card photo</button><input id="photo" type="file" accept="image/*" hidden><input id="t" placeholder="Type your message" autocomplete="off"><button id="b">Send</button></form></div>
 <script>
 const log=document.getElementById('log'),t=document.getElementById('t'),b=document.getElementById('b');
 let sid=null;
@@ -28,7 +28,8 @@ const $=(h,c)=>{const d=document.createElement('div');d.className=c||'';d.innerH
 const esc=s=>String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
 const bot=x=>{const d=$('', 'm bot');d.textContent=x;log.scrollTop=1e9};
 const me=x=>{const d=$('', 'm me');d.textContent=x};
-const lock=(l,ph)=>{t.disabled=b.disabled=l;t.placeholder=ph||(l?'Choose an option above':'Type your message');if(!l)t.focus()};
+const att=document.getElementById('att'),photo=document.getElementById('photo');
+const lock=(l,ph)=>{t.disabled=b.disabled=att.disabled=l;t.placeholder=ph||(l?'Choose an option above':'Type your message');if(!l)t.focus()};
 const money=n=>n==null?'—':'$'+n.toFixed(2);
 const api=(p,body)=>fetch(p,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body||{})}).then(async r=>{if(!r.ok)throw new Error((await r.json()).detail||r.status);return r.json()});
 function buttons(items,fn){const d=$('','opts');items.forEach(i=>{const e=document.createElement('button');e.textContent=i.label;e.onclick=()=>{d.remove();fn(i)};d.appendChild(e)})}
@@ -50,9 +51,14 @@ async function pick(o,ans){lock(true,'Checking your benefits…');
  if(r.quick_replies){buttons(r.quick_replies.map(q=>({label:q.label,value:q.value})),q=>{me(q.label);pick(o,q.value)});return}
  if(r.estimate&&r.estimate.status==='ok')card(r.estimate);
  lock(false)}catch(e){bot('Error: '+e.message);lock(false)}}
-document.getElementById('f').onsubmit=async e=>{e.preventDefault();const x=t.value.trim();if(!x)return;t.value='';me(x);lock(true,'Thinking…');
- try{const r=await api(`/sessions/${sid}/messages`,{text:x});bot(r.message);if(r.estimate&&r.estimate.status==='ok')card(r.estimate);
+function shrink(file){return new Promise((ok,no)=>{const img=new Image(),u=URL.createObjectURL(file);img.onload=()=>{const k=Math.min(1,1600/Math.max(img.width,img.height)),c=document.createElement('canvas');c.width=Math.round(img.width*k);c.height=Math.round(img.height*k);c.getContext('2d').drawImage(img,0,0,c.width,c.height);URL.revokeObjectURL(u);ok(c.toDataURL('image/jpeg',0.85).split(',')[1])};img.onerror=()=>no(new Error('Could not read that image'));img.src=u})}
+att.onclick=()=>photo.click();
+photo.onchange=async()=>{const f=photo.files[0];photo.value='';if(!f)return;
+ try{const data=await shrink(f);send('',[{media_type:'image/jpeg',data}],'Card photo sent')}catch(err){bot('Error: '+err.message)}};
+document.getElementById('f').onsubmit=e=>{e.preventDefault();const x=t.value.trim();if(!x)return;t.value='';send(x)};
+async function send(x,images,shown){me(shown||x);lock(true,'Thinking…');
+ try{const r=await api(`/sessions/${sid}/messages`,{text:x,images:images||[]});bot(r.message);if(r.estimate&&r.estimate.status==='ok')card(r.estimate);
   if(r.menu){bot(r.menu.message);buttons(r.menu.options,o=>{me(o.label);pick(o)});lock(true);return}}
- catch(err){bot('Error: '+err.message)}lock(false)};
+ catch(err){bot('Error: '+err.message)}lock(false)}
 (async()=>{try{const s=await api('/sessions');sid=s.session_id;bot(s.message);lock(false)}catch(e){bot('Could not start: '+e.message)}})();
 </script></body></html>

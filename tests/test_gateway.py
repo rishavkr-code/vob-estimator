@@ -147,3 +147,79 @@ def test_provider_details_and_distance():
         near_phx = c.post("/v1/patient-sessions/providers", headers=H(sid),
                           json={"near": {"kind": "zip", "zip": "85013"}}).json()
         assert near_phx[0]["npi"] == "1609834373"                                    # nearest first
+
+
+# ---------------- card photo reading ----------------
+import base64
+
+from vob_agent import cardvision
+
+PNG = b"\x89PNG\r\n\x1a\n" + b"0" * 64
+
+
+def test_card_ocr_endpoint_returns_app_shape(monkeypatch):
+    seen = {}
+
+    async def fake_extract(images, store):
+        seen["n"], seen["types"] = len(images), [t for _, t in images]
+        return {"status": "ok", "fields": {"firstName": "Jane", "lastName": "Doe", "memberId": "U123", "payerId": "62308",
+                                           "payerName": "Cigna"}, "lowConfidenceFields": ["memberId"]}
+    monkeypatch.setattr(cardvision, "extract_card", fake_extract)
+    with _client() as c:
+        sid = _session(c)
+        r = c.post("/v1/patient-sessions/card-ocr", headers=H(sid),
+                   files={"front": ("front.jpg", PNG, "image/jpeg"), "back": ("back.jpg", PNG, "image/jpeg")})
+        assert r.status_code == 200 and r.json()["status"] == "ok"
+        assert r.json()["fields"]["memberId"] == "U123" and r.json()["lowConfidenceFields"] == ["memberId"]
+        assert seen == {"n": 2, "types": ["image/png", "image/png"]}      # type sniffed from bytes, not the header
+        bad = c.post("/v1/patient-sessions/card-ocr", headers=H(sid), files={"front": ("x.txt", b"not an image", "image/jpeg")})
+        assert bad.status_code == 415
+        big = c.post("/v1/patient-sessions/card-ocr", headers=H(sid),
+                     files={"front": ("big.png", PNG + b"0" * cardvision.MAX_BYTES, "image/png")})
+        assert big.status_code == 413
+        assert c.post("/v1/patient-sessions/card-ocr", files={"front": ("a.png", PNG, "image/png")}).status_code == 401
+
+
+class PhotoLLM:
+    """Records what the model is shown; reads the 'card' by calling record_patient_info like the real model would."""
+    def __init__(self):
+        self.n, self.saw_image = 0, False
+
+    async def complete(self, system, messages, tools):
+        self.n += 1
+        if self.n == 1:
+            self.saw_image = any(isinstance(m["content"], list) and any(b.get("type") == "image" for b in m["content"])
+                                 for m in messages)
+            return NS(content=[NS(type="tool_use", id="t1", name="record_patient_info", input={
+                "first_name": "Jane", "last_name": "Doe", "member_id": "U123", "payer_name": "Cigna"})])
+        return NS(content=[NS(type="text", text="Thanks Jane! What's your date of birth?")])
+
+
+def test_chat_card_photo_is_read_then_dropped_from_history(monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test")
+    monkeypatch.setenv("LLM_PROVIDER", "anthropic")
+    llm = PhotoLLM()
+    from vob_agent import api as a
+    with _client() as c:
+        a.agent = Agent(a.svc, llm)
+        sid = c.post("/sessions").json()["session_id"]
+        r = c.post(f"/sessions/{sid}/messages", json={"text": "", "images": [
+            {"media_type": "image/png", "data": base64.b64encode(PNG).decode()}]})
+        assert r.status_code == 200 and "date of birth" in r.json()["message"]
+        assert llm.saw_image                                           # the model saw the photo this turn
+        assert r.json()["missing"] == ["date_of_birth"]                # only DOB left to ask
+        hist = a.svc.sessions[sid].history
+        assert not any(isinstance(m["content"], list) and any(b.get("type") == "image" for b in m["content"]) for m in hist)
+        assert c.post(f"/sessions/{sid}/messages", json={"text": "", "images": []}).status_code == 400
+        bad = c.post(f"/sessions/{sid}/messages", json={"images": [{"media_type": "image/png", "data": "!!notb64"}]})
+        assert bad.status_code == 400
+        txt = c.post(f"/sessions/{sid}/messages", json={"images": [{"media_type": "image/png", "data": base64.b64encode(b"hello").decode()}]})
+        assert txt.status_code == 415
+
+
+def test_photo_without_vision_asks_to_type(monkeypatch):
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    with _client() as c:
+        sid = c.post("/sessions").json()["session_id"]
+        r = c.post(f"/sessions/{sid}/messages", json={"images": [{"media_type": "image/png", "data": base64.b64encode(PNG).decode()}]})
+        assert r.status_code == 200 and "type" in r.json()["message"].lower()

@@ -9,9 +9,10 @@ import time
 from collections import defaultdict, deque
 from datetime import date, datetime, timedelta, timezone
 
-from fastapi import APIRouter, Header, HTTPException, Request
+from fastapi import APIRouter, File, Header, HTTPException, Request, UploadFile
 from pydantic import BaseModel
 
+from . import cardvision
 from .engine import benefit_for, compare_clinics, estimate_clinic
 from .session import Session, normalize_dob
 
@@ -224,9 +225,24 @@ def build_router(get_svc, get_agent) -> APIRouter:
         return sorted(out, key=lambda p: (not p["supported"], p["name"]))
 
     @router.post("/patient-sessions/card-ocr")
-    def card_ocr(x_session_id: str | None = Header(None)):
-        session(x_session_id)  # images are intentionally not read or stored
-        return {"status": "unreadable"}
+    async def card_ocr(request: Request, front: UploadFile | None = File(None), back: UploadFile | None = File(None),
+                       x_session_id: str | None = Header(None)):
+        """Reads the card photo(s) with Claude vision. Images stay in memory and are never stored."""
+        svc = get_svc()
+        session(x_session_id)
+        _limit("ocr:" + _ip(request), svc.store.settings.get("limits", {}).get("card_reads_per_ip_per_hour", 15))
+        images = []
+        for f in (front, back):
+            if f is None:
+                continue
+            data = await f.read(cardvision.MAX_BYTES + 1)
+            if len(data) > cardvision.MAX_BYTES:
+                raise HTTPException(413, "Image too large (max 6 MB)")
+            mt = cardvision.sniff(data)
+            if not mt:
+                raise HTTPException(415, "Unsupported image type (use JPEG, PNG or WebP)")
+            images.append((data, mt))
+        return await cardvision.extract_card(images, svc.store)
 
     @router.post("/patient-sessions/eligibility")
     async def eligibility(body: CardFields, request: Request, x_session_id: str | None = Header(None)):

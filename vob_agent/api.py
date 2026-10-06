@@ -1,4 +1,5 @@
 """HTTP API for the frontend. Run: uvicorn vob_agent.api:app --reload"""
+import base64
 import os
 from pathlib import Path
 
@@ -8,6 +9,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from .agent import Agent
+from . import cardvision
 from .data import ROOT, DataStore, load_menu
 from .gateway import build_router
 from .session import SessionService
@@ -38,8 +40,14 @@ class SelectBody(BaseModel):
     followup_answer: str | None = None  # "yes" | "no"
 
 
+class ImageIn(BaseModel):
+    media_type: str
+    data: str  # base64, no data: prefix
+
+
 class MessageBody(BaseModel):
-    text: str
+    text: str = ""
+    images: list[ImageIn] = []  # insurance card photo(s), step 1 only
 
 
 def _session(sid):
@@ -129,7 +137,30 @@ async def message(sid: str, body: MessageBody):
     s = _session(sid)
     if not s.unlocked:
         raise HTTPException(409, "Choose one of the options first")
-    reply = await agent.respond(s, body.text)
+    images = []
+    if body.images:
+        if s.phase != "collecting":
+            raise HTTPException(400, "Card photos are only accepted while collecting insurance details")
+        if not cardvision.vision_enabled():
+            return {"message": "I can't read photos right now. Could you type your name, member ID, "
+                               "date of birth and insurance company instead?",
+                    "input_locked": False, "missing": s.missing(), "estimate": s.estimate}
+        if len(body.images) > cardvision.MAX_IMAGES:
+            raise HTTPException(400, "At most 2 images")
+        for im in body.images:
+            try:
+                raw = base64.b64decode(im.data, validate=True)
+            except Exception:
+                raise HTTPException(400, "Image is not valid base64")
+            if len(raw) > cardvision.MAX_BYTES:
+                raise HTTPException(413, "Image too large (max 6 MB)")
+            mt = cardvision.sniff(raw)
+            if not mt:
+                raise HTTPException(415, "Unsupported image type (use JPEG, PNG or WebP)")
+            images.append((mt, im.data))
+    elif not body.text.strip():
+        raise HTTPException(400, "Empty message")
+    reply = await agent.respond(s, body.text, images or None)
     out = {"message": reply, "input_locked": False, "missing": s.missing(), "estimate": s.estimate}
     if s.phase == "collecting" and s.ready():   # step 1 done -> lock the input, show the menu
         s.phase = "choose"

@@ -145,7 +145,7 @@
       ]
     },
     {
-      "name": "3. Card OCR (stub)",
+      "name": "3. Card photo reading",
       "request": {
         "method": "POST",
         "header": [
@@ -169,7 +169,22 @@
             "card-ocr"
           ]
         },
-        "description": "Stub. Always returns unreadable so the app falls back to manual entry. No image needed."
+        "description": "multipart/form-data. In Body, pick a JPEG/PNG/WebP file for 'front' (and optionally 'back'). Returns the fields read from the card, or {status: unreadable}. Test cards only.",
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "front",
+              "type": "file",
+              "src": []
+            },
+            {
+              "key": "back",
+              "type": "file",
+              "src": []
+            }
+          ]
+        }
       },
       "event": [
         {
@@ -177,7 +192,8 @@
           "script": {
             "type": "text/javascript",
             "exec": [
-              "pm.test(\"unreadable\", () => pm.expect(pm.response.json().status).to.eql(\"unreadable\"));"
+              "const j = pm.response.json(); pm.test(\"ok or unreadable\", () => pm.expect(j.status).to.be.oneOf([\"ok\",\"unreadable\"]));",
+              "console.log(JSON.stringify(j.fields||{}));"
             ]
           }
         }
